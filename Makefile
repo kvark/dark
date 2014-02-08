@@ -1,4 +1,4 @@
-LIB_PATH	=../rust-compress
+LIB_PATH	=lib/compress
 
 .PHONY: all test test-small
 
@@ -21,7 +21,7 @@ test-large: dark
 
 test: dark
 	echo -n "abracadabra" >in.dat
-	RUST_LOG=3 ./dark in.dat
-	RUST_LOG=3 ./dark in.dat.dark
+	./dark in.dat
+	./dark in.dat.dark
 	cat in.dat.orig && echo ""
 	rm in.dat*

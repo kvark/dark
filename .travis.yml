@@ -1,0 +1,12 @@
+before_install:
+  - yes | sudo add-apt-repository ppa:hansjorg/rust
+  - sudo apt-get update
+install:
+  - sudo apt-get install rust-nightly
+script:
+  - git clone https://github.com/alexcrichton/rust-compress lib/compress
+  - (cd lib/compress && rustc lib.rs)
+  - make test
+  - ls -1
+after_script:
+  - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
