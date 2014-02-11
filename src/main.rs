@@ -153,7 +153,7 @@ pub fn main() {
 		let dc_init = dc::encode(output, suf, &mut mtf);
 		// compress to the output
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));
-		let mut out_file = io::File::create(&out_path);
+		let mut out_file = io::File::create(&out_path).unwrap();
 		info!("Encoding N: {}", N);
 		out_file.write_le_u32(N as u32).unwrap();
 		// encode alphabet

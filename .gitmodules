@@ -1,0 +1,3 @@
+[submodule "lib/compress"]
+	path = lib/compress
+	url = https://github.com/alexcrichton/rust-compress

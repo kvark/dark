@@ -4,9 +4,9 @@ before_install:
 install:
   - sudo apt-get install rust-nightly
 script:
-  - git clone https://github.com/alexcrichton/rust-compress lib/compress
-  - (cd lib/compress && rustc lib.rs)
-  - make test
+  - git submodule init
+  - git submodule update
+  - make pack
   - ls -1
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh

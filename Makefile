@@ -1,25 +1,37 @@
-LIB_PATH	=lib/compress
+LIB_DIR		=lib/compress
+LIB_PATH	=${LIB_DIR}/libcompress-*.rlib
 
-.PHONY: all test test-small
+.PHONY: all deps pack pack-small test-lib
 
 all: dark
 
-dark: Makefile src/*.rs ${LIB_PATH}/libcompress*
-	rustc -L ${LIB_PATH} -o dark src/main.rs
 
-test-small: dark
-	./dark ${LIB_PATH}/data/test.txt
+deps: ${LIB_PATH}
+
+${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
+	cd ${LIB_DIR} && rustc lib.rs
+
+test-lib: ${LIB_PATH}
+	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
+
+
+dark: Makefile src/*.rs ${LIB_PATH}
+	rustc -L ${LIB_DIR} -o dark src/main.rs
+
+
+pack-small: dark
+	./dark ${LIB_DIR}/data/test.txt
 	./dark test.txt.dark
-	cmp ${LIB_PATH}/data/test.txt test.txt.orig
+	cmp ${LIB_DIR}/data/test.txt test.txt.orig
 	ls -l test.txt.dark
 
-test-large: dark
-	./dark ${LIB_PATH}/data/test.large
+pack-large: dark
+	./dark ${LIB_DIR}/data/test.large
 	./dark test.large.dark
-	cmp ${LIB_PATH}/data/test.large test.large.orig
+	cmp ${LIB_DIR}/data/test.large test.large.orig
 	ls -l test.large.dark
 
-test: dark
+pack: dark
 	echo -n "abracadabra" >in.dat
 	./dark in.dat
 	./dark in.dat.dark
