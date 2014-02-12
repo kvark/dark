@@ -18,6 +18,9 @@ test-lib: ${LIB_PATH}
 dark: Makefile src/*.rs ${LIB_PATH}
 	rustc -L ${LIB_DIR} -o dark src/main.rs
 
+clean:
+	rm ${LIB_PATH} ./dark
+
 
 pack-small: dark
 	./dark ${LIB_DIR}/data/test.txt

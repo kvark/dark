@@ -7,6 +7,5 @@ script:
   - git submodule init
   - git submodule update
   - make pack
-  - ls -1
 after_script:
   - curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh
