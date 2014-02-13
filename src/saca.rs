@@ -18,7 +18,7 @@ pub type Symbol = u8;
 pub type Suffix = uint;
 
 
-/// 
+/// main entry point for SAC
 pub fn construct_suffix_array(input: &[Symbol], suffixes: &mut [Suffix]) {
 	assert_eq!(input.len(), suffixes.len());
 	for (i,p) in suffixes.mut_iter().enumerate() {
@@ -73,6 +73,18 @@ impl<'a> Iterator<Symbol> for LastColumnIterator<'a> {
 }
 
 
+/// A helper method to perform BWT on a given block and place the result into output
+/// returns the original string index in the sorted matrix
+pub fn BW_transform(input: &[Symbol], suf: &mut [Suffix], output: &mut [Symbol]) -> uint {
+	construct_suffix_array(input, suf);
+	let mut iter = LastColumnIterator::new(input, suf);
+	for (out,s) in output.mut_iter().zip(iter.by_ref()) {
+		*out = s;
+	}
+	iter.get_origin()
+}
+
+
 /// An iterator over inverse BWT
 pub struct InverseIterator<'a> {
 	priv input		: &'a [Symbol],
@@ -120,5 +132,40 @@ impl<'a> Iterator<Symbol> for InverseIterator<'a> {
 			let p = if self.current!=-1 {self.current} else {self.origin};
 			Some(self.input[p])
 		}
+	}
+}
+
+#[cfg(test)]
+pub mod test {
+	use std::vec;
+	use super::{Suffix, Symbol};
+
+	#[test]
+	fn some() {
+		let input = bytes!("abracadabra");
+		let mut suf = vec::from_elem(input.len(), 0 as Suffix);
+		super::construct_suffix_array(input, suf);
+		assert_eq!(suf.as_slice(), &[10,7,0,3,5,8,1,4,6,9,2]);
+		let (output, origin) = {
+			let mut iter = super::LastColumnIterator::new(input,suf);
+			let out = iter.by_ref().take(input.len()).to_owned_vec();
+			(out, iter.get_origin())
+		};
+		assert_eq!(origin, 2);
+		let expected = bytes!("rdarcaaaabb");
+		assert_eq!(output.as_slice(), expected.as_slice());
+		let decoded = super::InverseIterator::new(output, origin, suf).to_owned_vec();
+		assert_eq!(input.as_slice(), decoded.as_slice());
+	}
+
+	#[test]
+	fn roundtrip() {
+		let input = include_bin!("../LICENSE");
+		let mut suf = vec::from_elem(input.len(), 0 as Suffix);
+		let mut output = vec::from_elem(input.len(), 0 as Symbol);
+		let origin = super::BW_transform(input, suf, output);
+		let decoded = super::InverseIterator::new(output, origin, suf).
+			take(input.len()).to_owned_vec();
+		assert_eq!(input.as_slice(), decoded.as_slice());
 	}
 }

@@ -136,10 +136,7 @@ pub fn main() {
 		let ext_pos = file_name.len() - extension.len();
 		let out_path = Path::new(format!("{}{}", file_name.slice_to(ext_pos), ".orig"));
 		let mut out_file = io::File::create(&out_path);
-		//bwt::decode_std(input, origin, suf, |b| out_file.write_u8(b).unwrap());
-		for sym in saca::InverseIterator::new(input, origin, suf).take(N) {
-			out_file.write_u8(sym).unwrap()
-		}
+		bwt::decode_std(input, origin, suf, |b| out_file.write_u8(b).unwrap());
 	}else {
 		let input = match io::File::open(&input_path).read_to_end() {
 			Ok(data) => data,
@@ -150,15 +147,10 @@ pub fn main() {
 		};
 		let N = input.len();
 		// create temporaries
-		//let mut output = vec::from_elem(N, 0u8);
+		let mut output = vec::from_elem(N, 0u8);
 		let mut suf = vec::from_elem(N, N as bwt::Suffix);
 		// do BWT and DC
-		//let origin = bwt::encode_mem(input, suf, output);
-		saca::construct_suffix_array(input, suf);
-		let (output,origin) = {
-			let mut iter = saca::LastColumnIterator::new(input, suf);
-			(iter.to_owned_vec(), iter.get_origin())
-		};
+		let origin = bwt::encode_mem(input, suf, output);
 		let mut mtf = dc::MTF::new();
 		let dc_init = dc::encode(output, suf, &mut mtf);
 		// compress to the output
