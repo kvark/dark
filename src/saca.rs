@@ -15,9 +15,9 @@ use std::{iter, vec};
 use compress::bwt;
 
 pub type Symbol = u8;
-pub type Suffix = uint;
+pub type Suffix = u32;
 
-static EMPTY: Suffix = 0x7FFFFFFF;
+static EMPTY: Suffix = 0x80000000;
 
 
 fn get_buckets(input: &[Symbol], buckets: &mut [uint], end: bool) {
@@ -34,19 +34,70 @@ fn get_buckets(input: &[Symbol], buckets: &mut [uint], end: bool) {
 	}
 }
 
-fn put_substr0(_suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) {
+fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
+	
+	// Set each item in SA as empty.
+	for suf in suffixes.mut_iter() {
+		*suf = 0;
+	}
 
-	//TODO
+	// Last string is L-type
+	input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(&prev,&cur))| {
+		if prev < cur || (prev==cur && succ_t) {
+			true
+		}else {
+			if succ_t {
+				buckets[cur] -= 1;
+				suffixes[buckets[cur]] = i as Suffix;
+			}
+			false
+		}
+	});
+
+	// Set the single sentinel LMS-substring.
+	*suffixes.mut_last().unwrap() = (input.len()-1) as Suffix;
 }
 
-fn induce_l0(_suffixes: &mut [Suffix], _input: &[Symbol], _buckets: &mut [uint], _clean: bool) {
-	//TODO
+fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], clean: bool) {
+	// Find the head of each bucket.
+	get_buckets(input, buckets, false);
+
+	buckets[0]+=1; // skip the virtual sentinel.
+
+	for i in range(0,suffixes.len()) {
+		let suf = suffixes[i];
+		if suf > 0 {
+			let sym = input[suf-1];
+			if sym >= input[suf] {
+				suffixes[buckets[sym]] = suf-1;
+				buckets[sym] += 1;
+				if clean && i>0 {
+					suffixes[i] = 0;
+				}
+			}
+		}
+	}
 }
 
-fn induce_s0(_suffixes: &mut [Suffix], _input: &[Symbol], _buckets: &mut [uint], _clean: bool) {
-	//TODO
+fn induce_s0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], clean: bool) {
+	// Find the head of each bucket.
+	get_buckets(input, buckets, true);
+
+	for i in range(1,suffixes.len()).rev() {
+		let suf = suffixes[i];
+		if suf > 0 {
+			let sym = input[suf-1];
+			if sym <= input[suf] && buckets[sym] < i {
+				buckets[sym] -= 1;
+				suffixes[buckets[sym]] = suf-1;
+				if clean {
+					suffixes[i] = 0;
+				}
+			}
+		}
+	}
 }
 
 fn gather_lms(suffixes: &mut [Suffix], input: &[Suffix]) {
@@ -70,7 +121,7 @@ fn put_suffix0(suffixes: &mut [Suffix], n1: uint, input: &[Symbol], buckets: &mu
 	}
 
 	// Set the single sentinel suffix.
-	suffixes[0] = input.len()-1;
+	suffixes[0] = (input.len()-1) as Suffix;
 }
 
 fn name_substr(_suffixes: &mut [Suffix], _input: &[Symbol], _new_input: &[Suffix], _level: uint) -> uint {
@@ -100,8 +151,8 @@ fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
 
 	// Stage 1: reduce the problem by at least 1/2.
 	put_substr0(suffixes, input, buckets.as_mut_slice());
-	induce_l0(suffixes, input, buckets.as_mut_slice(), false);
-	induce_s0(suffixes, input, buckets.as_mut_slice(), false);
+	induce_l0(suffixes, input, buckets.as_mut_slice(), true);
+	induce_s0(suffixes, input, buckets.as_mut_slice(), true);
 
 	// Now, all the LMS-substrings are sorted and stored sparsely in SA.
 	// Compact all the sorted substrings into the first n1 items of SA.
@@ -125,7 +176,7 @@ fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
-				sa_new[sym] = i;
+				sa_new[sym] = i as Suffix;
 			}
 		}
 
@@ -137,8 +188,8 @@ fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
 	}
 
 	put_suffix0(suffixes, n1, input, buckets.as_mut_slice());
-	induce_l0(suffixes, input, buckets.as_mut_slice(), true);
-	induce_s0(suffixes, input, buckets.as_mut_slice(), true);
+	induce_l0(suffixes, input, buckets.as_mut_slice(), false);
+	induce_s0(suffixes, input, buckets.as_mut_slice(), false);
 }
 
 
@@ -154,8 +205,8 @@ pub fn construct_suffix_array(input: &[Symbol], suffixes: &mut [Suffix]) {
 	}else {
 		suffixes.sort_by(|&a,&b| {
 			iter::order::cmp(
-				input.slice_from(a).iter(),
-				input.slice_from(b).iter())
+				input.slice_from(a as uint).iter(),
+				input.slice_from(b as uint).iter())
 		});
 	}
 
@@ -217,7 +268,7 @@ pub fn BW_transform(input: &[Symbol], suf: &mut [Suffix], output: &mut [Symbol])
 pub struct InverseIterator<'a> {
 	priv input		: &'a [Symbol],
 	priv suffixes	: &'a [Suffix],
-	priv origin		: Suffix,
+	priv origin		: uint,
 	priv current	: Suffix,
 }
 
@@ -233,10 +284,10 @@ impl<'a> InverseIterator<'a> {
 
 		suffixes[radix.place(input[origin])] = 0;
 		for (i,&ch) in input.slice_to(origin).iter().enumerate() {
-			suffixes[radix.place(ch)] = i+1;
+			suffixes[radix.place(ch)] = (i+1) as Suffix;
 		}
 		for (i,&ch) in input.slice_from(origin+1).iter().enumerate() {
-			suffixes[radix.place(ch)] = origin+2+i;
+			suffixes[radix.place(ch)] = (origin+2+i) as Suffix;
 		}
 		//suffixes[-1] = origin;
 		debug!("decode table: {:?}", suffixes)
@@ -257,7 +308,11 @@ impl<'a> Iterator<Symbol> for InverseIterator<'a> {
 		}else {
 			self.current = self.suffixes[self.current] - 1;
 			debug!("\tjumped to {}", self.current);
-			let p = if self.current!=-1 {self.current} else {self.origin};
+			let p = if self.current!=-1 {
+				self.current
+			}else {
+				self.origin as Suffix
+			};
 			Some(self.input[p])
 		}
 	}
