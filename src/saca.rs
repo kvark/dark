@@ -64,7 +64,7 @@ fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 	// Find the head of each bucket.
 	get_buckets(input, buckets, false);
 
-	buckets[0]+=1; // skip the virtual sentinel.
+	buckets[0] += 1; // skip the virtual sentinel.
 
 	for i in range(0,suffixes.len()) {
 		let suf = suffixes[i];
@@ -100,11 +100,94 @@ fn induce_s0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 	}
 }
 
-fn gather_lms(suffixes: &mut [Suffix], input: &[Suffix]) {
-	//TODO
+fn get_lms_length<T: Eq + Ord + Pod>(input: &[T]) -> uint {
+	if input.len() == 1 {
+		return 1
+	}
+
+	let mut dist = 0u;
+	let mut i = 0u;
+	while {i+=1; input[i-1] <= input[i]} {}
 	
-	for suf in suffixes.mut_iter() {
-		*suf = input[*suf];
+	loop {
+		if i >= input.len()-0 || input[i-1] < input[i] {break}
+		if i == input.len()-1 || input[i-1] > input[i] {dist=i}
+		i += 1;
+	}
+
+	dist+1
+}
+
+fn name_substr<T: Eq + Ord + Pod>(new_suffixes: &mut [Suffix], new_input: &mut [Suffix], input: &[T]) -> uint {
+	// Init the name array buffer.
+	for suf in new_input.mut_iter() {
+		*suf = EMPTY;
+	}
+
+ 	// Scan to compute the interim s1.
+	let mut pre_pos = 0u;
+	let mut pre_len = 0u;
+	let mut name = 0u;
+	let mut name_count = 0u;
+	for i in range(0, new_suffixes.len()) {
+		let pos = new_suffixes[i] as uint;
+		let len = get_lms_length(input.slice_from(pos));
+		if len != pre_len || input.slice(pre_pos, pre_pos+len) != input.slice(pos, pos+len) {
+			name = i;	// A new name.
+			name_count += 1;
+			new_suffixes[name] = 1;
+			pre_pos = pos;
+			pre_len = len;
+		}else {
+			new_suffixes[name] += 1;	// Count this name.
+		}
+		new_input[pos>>1] = name as Suffix;
+	}
+
+	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[m-n1, m-1].
+	{
+		let non_empty = new_input.iter().rev().filter(|&s| *s!=EMPTY);
+		for (suf, val) in new_suffixes.mut_iter().rev().zip(non_empty) {
+			*suf = *val;
+		}
+	}
+
+	// Rename each S-type character of the interim s1 as the end
+	// of its bucket to produce the final s1.
+	range(1, new_input.len()).rev().fold(true, |succ_t, i| {
+		let prev = new_input[i-1];
+		let cur = new_input[i];
+		if prev < cur || (prev == cur && succ_t) {
+			new_input[i-1] += new_suffixes[prev] - 1;
+			true
+		}else {
+			false
+		}
+	});
+
+	name_count
+}
+
+fn gather_lms<T: Eq + Ord + Pod>(new_suffixes: &mut [Suffix], new_input: &mut [Suffix], input: &[T] ) {
+	let mut j = new_input.len();
+	j -= 1;
+	new_input[j] = (input.len()-1) as Suffix;
+	
+	// s[n-2] must be L-type
+	input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(&prev,&cur))| {
+		if prev < cur || (prev == cur && succ_t) {
+			true
+		}else {
+			if succ_t {
+				j -= 1;
+				new_input[j] = i as Suffix;
+			}
+			false
+		}
+	});
+	
+	for suf in new_suffixes.mut_iter() {
+		*suf = new_input[*suf];
 	}
 }
 
@@ -124,13 +207,9 @@ fn put_suffix0(suffixes: &mut [Suffix], n1: uint, input: &[Symbol], buckets: &mu
 	suffixes[0] = (input.len()-1) as Suffix;
 }
 
-fn name_substr(_suffixes: &mut [Suffix], _input: &[Symbol], _new_input: &[Suffix], _level: uint) -> uint {
-	0 //TODO
-}
 
-fn saca_kn(input: &[Suffix], suffixes: &mut [Suffix], _level: uint) {
+fn saca_k1(input: &[Suffix], suffixes: &mut [Suffix], _level: uint) {
 	//TODO
-
 	let n1 = 0u;
 
 	assert!(n1+n1 <= input.len());
@@ -138,21 +217,20 @@ fn saca_kn(input: &[Suffix], suffixes: &mut [Suffix], _level: uint) {
 	//TODO
 
 	// Stage 3: induce SA(S) from SA(S1).
-	gather_lms(sa_new, input_new);
+	gather_lms(sa_new, input_new, input);
 	for s in input_new.mut_iter() {
 		*s = EMPTY;
 	}
 
+	unimplemented!()
 	//TODO
 }
 
-fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
-	let mut buckets = vec::from_elem(K, 0u);
-
+fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 	// Stage 1: reduce the problem by at least 1/2.
-	put_substr0(suffixes, input, buckets.as_mut_slice());
-	induce_l0(suffixes, input, buckets.as_mut_slice(), true);
-	induce_s0(suffixes, input, buckets.as_mut_slice(), true);
+	put_substr0(suffixes, input, buckets);
+	induce_l0(suffixes, input, buckets, true);
+	induce_s0(suffixes, input, buckets, true);
 
 	// Now, all the LMS-substrings are sorted and stored sparsely in SA.
 	// Compact all the sorted substrings into the first n1 items of SA.
@@ -168,11 +246,11 @@ fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
 	{
 		assert!(n1+n1 <= input.len());
 		let (sa_new, input_new) = suffixes.mut_split_at(n1);
-		let num_names = name_substr(sa_new, input, input_new, 0);
+		let num_names = name_substr(sa_new, input_new, input);
 
 		if num_names < n1 {
 			// Recurse if names are not yet unique.
-			saca_kn(input_new, sa_new, 1);
+			saca_k1(input_new, sa_new, 1);
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
@@ -180,29 +258,30 @@ fn saca_k0(input: &[Symbol], K: uint, suffixes: &mut [Suffix]) {
 			}
 		}
 
-		// Stage 3: induce SA(S) from SA(S1).
-		gather_lms(sa_new, input_new);
+		gather_lms(sa_new, input_new, input);
 		for s in input_new.mut_iter() {
 			*s = 0;
 		}
 	}
 
-	put_suffix0(suffixes, n1, input, buckets.as_mut_slice());
-	induce_l0(suffixes, input, buckets.as_mut_slice(), false);
-	induce_s0(suffixes, input, buckets.as_mut_slice(), false);
+	// Stage 3: induce SA(S) from SA(S1).
+	put_suffix0(suffixes, n1, input, buckets);
+	induce_l0(suffixes, input, buckets, false);
+	induce_s0(suffixes, input, buckets, false);
 }
 
 
 /// main entry point for SAC
 pub fn construct_suffix_array(input: &[Symbol], suffixes: &mut [Suffix]) {
 	assert_eq!(input.len(), suffixes.len());
-	for (i,p) in suffixes.mut_iter().enumerate() {
-		*p = i as Suffix;
-	}
 
 	if true {
-		saca_k0(input, 0x100, suffixes);
+		let mut buckets = [0u, ..0x100];
+		saca_k0(input, suffixes, buckets.as_mut_slice());
 	}else {
+		for (i,p) in suffixes.mut_iter().enumerate() {
+			*p = i as Suffix;
+		}
 		suffixes.sort_by(|&a,&b| {
 			iter::order::cmp(
 				input.slice_from(a as uint).iter(),
