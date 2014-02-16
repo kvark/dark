@@ -17,7 +17,7 @@ use compress::bwt;
 pub type Symbol = u8;
 pub type Suffix = u32;
 
-static EMPTY: Suffix = 0x80000000;
+static SUF_INVALID	: Suffix = 0xFFFFFFFF;
 
 
 fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
@@ -62,7 +62,7 @@ fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) 
 	get_buckets(input, buckets, true);
 	
 	// Set each item in SA as empty.
-	fill(suffixes, 0);
+	fill(suffixes, SUF_INVALID);
 	// Active suffixes have +1 value added to them
 
 	// Last string is L-type
@@ -72,8 +72,8 @@ fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) 
 		}else {
 			if succ_t { // LMS detected
 				buckets[cur] -= 1;
-				suffixes[buckets[cur]] = (i+1) as Suffix + 1;
-				debug!("put_substr0: detected LMS suf[{}] of symbol '{}', value {}",
+				suffixes[buckets[cur]] = (i+1) as Suffix;
+				debug!("\tput_substr0: detected LMS suf[{}] of symbol '{}', value {}",
 					buckets[cur], cur as char, i+1);
 			}
 			false
@@ -84,8 +84,8 @@ fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) 
 	if succ_t && false { // no use for value 0 for the induce_l0
 		let cur = input[0];
 		buckets[cur] -= 1;
-		suffixes[buckets[cur]] = 0 + 1;
-		debug!("put_substr0: detected LMS suf[{}] of symbol '{}', value {}",
+		suffixes[buckets[cur]] = 0;
+		debug!("\tput_substr0: detected LMS suf[{}] of symbol '{}', value {}",
 			buckets[cur], cur as char, 0);
 	}
 
@@ -102,9 +102,9 @@ fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 	// Process sentinel as L-type (NEW)
 	{
 		let sym = *input.last().unwrap();
-		debug!("induce_l0: induced suf[{}] of last symbol '{}' to value {}",
+		debug!("\tinduce_l0: induced suf[{}] of last symbol '{}' to value {}",
 			buckets[sym], sym as char, input.len()-1);
-		suffixes[buckets[sym]] = (input.len()-1) as Suffix + 1;
+		suffixes[buckets[sym]] = (input.len()-1) as Suffix;
 		buckets[sym] += 1;
 	}
 
@@ -113,15 +113,17 @@ fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 
 	for i in range(0, suffixes.len()) {
 		let suf = suffixes[i];
-		if suf < 2 {continue}
-		let sym = input[suf-2];
-		if sym >= input[suf-1] { // L-type
-			debug!("induce_l0: induced suf[{}] of symbol '{}' to value {}",
-				buckets[sym], sym as char, suf-2);
-			suffixes[buckets[sym]] = suf-1;
+		if suf == SUF_INVALID || suf == 0 {continue}
+		let sym = input[suf-1];
+		if sym >= input[suf] { // L-type
+			debug!("\tinduce_l0: induced suf[{}] of symbol '{}' to value {}",
+				buckets[sym], sym as char, suf-1);
+			if !clean || suf != 1 {	//we don't want anything at 0 now
+				suffixes[buckets[sym]] = suf-1;
+			}
 			buckets[sym] += 1;
 			if clean {
-				suffixes[i] = 0;
+				suffixes[i] = SUF_INVALID;
 			}
 		}
 	}
@@ -136,15 +138,15 @@ fn induce_s0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 
 	for i in range(0,suffixes.len()).rev() {
 		let suf = suffixes[i];
-		if suf < 2 {continue}
-		let sym = input[suf-2];
-		if sym <= input[suf-1] && buckets[sym] <= i { // S-type
+		if suf == SUF_INVALID || suf == 0 {continue}
+		let sym = input[suf-1];
+		if sym <= input[suf] && buckets[sym] <= i { // S-type
 			buckets[sym] -= 1;
 			suffixes[buckets[sym]] = suf-1;
-			debug!("induce_s0: induced suf[{}] of symbol '{}' to value {}",
-				buckets[sym], sym as char, suf-2);
+			debug!("\tinduce_s0: induced suf[{}] of symbol '{}' to value {}",
+				buckets[sym], sym as char, suf-1);
 			if clean {
-				suffixes[i] = 0;
+				suffixes[i] = SUF_INVALID;
 			}
 		}
 	}
@@ -172,7 +174,7 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 
 fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> uint {
 	// Init the name array buffer.
-	fill(suffixes.mut_slice_from(n1), EMPTY);
+	fill(suffixes.mut_slice_from(n1), SUF_INVALID);
 
  	// Scan to compute the interim s1.
 	let mut pre_pos = 0u;
@@ -182,7 +184,7 @@ fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> u
 	for i in range(0, n1) {
 		let pos = suffixes[i] as uint;
 		let len = get_lms_length(input.slice_from(pos));
-		debug!("LMS at {} has length {}", pos, len);
+		debug!("\tLMS at {} has length {}", pos, len);
 		if len != pre_len || input.slice(pre_pos, pre_pos+len) != input.slice(pos, pos+len) {
 			name = i;	// A new name.
 			name_count += 1;
@@ -198,7 +200,7 @@ fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> u
 	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[m-n1, m-1].
 	let mut j = suffixes.len();
 	for i in range(n1, suffixes.len()).rev() {
-		if suffixes[i] != EMPTY {
+		if suffixes[i] != SUF_INVALID {
 			j -= 1;
 			suffixes[j] = suffixes[i];
 		}
@@ -239,7 +241,7 @@ fn gather_lms<T: Eq + Ord + Pod>(sa_new: &mut [Suffix], input_new: &mut [Suffix]
 			if succ_t {
 				j -= 1;
 				input_new[j] = (i+1) as Suffix;
-				debug!("gather_lms: found suffix {} as input[{}]", i+1, j);
+				debug!("\tgather_lms: found suffix {} as input[{}]", i+1, j);
 			}
 			false
 		}
@@ -248,12 +250,12 @@ fn gather_lms<T: Eq + Ord + Pod>(sa_new: &mut [Suffix], input_new: &mut [Suffix]
 	if succ_t {	//NEW
 		j -= 1;
 		input_new[j] = 0;
-		debug!("gather_lms: found fist suffix as input[{}]", j);
+		debug!("\tgather_lms: found fist suffix as input[{}]", j);
 	}
 	assert!(j == 0);
 	
 	for suf in sa_new.mut_iter() {
-		*suf = input_new[*suf] + 1;	// later stages assume valid suffixes > 0
+		*suf = input_new[*suf];
 	}
 }
 
@@ -263,9 +265,9 @@ fn put_suffix0(suffixes: &mut [Suffix], n1: uint, input: &[Symbol], buckets: &mu
 
 	for i in range(0,n1).rev() {
 		let p = suffixes[i];
-		assert!(p > 0);
-		suffixes[i] = 0;
-		let sym = input[p-1];
+		assert!(p != SUF_INVALID);
+		suffixes[i] = SUF_INVALID;
+		let sym = input[p];
 		buckets[sym] -= 1;
 		assert!(buckets[sym] >= i);
 		suffixes[buckets[sym]] = p;
@@ -317,8 +319,8 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 	// Compact all the sorted substrings into the first n1 items of SA.
 	let mut n1 = 0u;
 	for i in range(0, suffixes.len()) {
-		if suffixes[i]>0 {
-			suffixes[n1] = suffixes[i] - 1;
+		if suffixes[i] != SUF_INVALID {
+			suffixes[n1] = suffixes[i];
 			n1 += 1;
 		}
 	}
@@ -332,7 +334,7 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 		debug!("num_names = {}, num_suffixes = {}", num_names, num_suffixes);
 		let (sa_temp, input_new) = suffixes.mut_split_at(num_suffixes);
 		let (sa_new, unused) = sa_temp.mut_split_at(n1);
-		fill(unused, 0);
+		fill(unused, SUF_INVALID);
 		rename_substr(sa_new, input_new);
 		debug!("renamed sa_new: {:?}", sa_new);
 		debug!("renamed input_new: {:?}", input_new);
@@ -348,7 +350,7 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 		}
 
 		gather_lms(sa_new, input_new, input);
-		fill(input_new, 0);
+		fill(input_new, SUF_INVALID);
 		debug!("Gathered LMS: {:?}", sa_new);
 	}
 
@@ -356,12 +358,6 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 	put_suffix0(suffixes, n1, input, buckets);
 	induce_l0(suffixes, input, buckets, false);
 	induce_s0(suffixes, input, buckets, false);
-
-	// NEW: reduce suffixes by 1
-	for p in suffixes.mut_iter() {
-		assert!(*p > 0);
-		*p -= 1;
-	}
 }
 
 
@@ -486,30 +482,33 @@ impl<'a> Iterator<Symbol> for InverseIterator<'a> {
 
 #[cfg(test)]
 pub mod test {
-	use std::{mem, vec};
-	use super::{EMPTY, Suffix};
+	use std::vec;
+	use super::{SUF_INVALID, Suffix, Symbol};
 
 	#[test]
 	fn consts() {
-		assert_eq!(EMPTY, 1<<(mem::size_of::<Suffix>()*8-1));
+		assert_eq!(SUF_INVALID, -1 as Suffix);
 	}
 
-	#[test]
-	fn abracadabra() {
-		let input = bytes!("abracadabra");
+	fn some_detail(input: &[Symbol], suf_expected: &[Suffix], origin_expected: uint, out_expected: &[Symbol]) {
 		let mut suf = vec::from_elem(input.len(), 0 as Suffix);
 		super::construct_suffix_array(input, suf);
-		assert_eq!(suf.as_slice(), &[10,7,0,3,5,8,1,4,6,9,2]);
+		assert_eq!(suf.as_slice(), suf_expected);
 		let (output, origin) = {
 			let mut iter = super::LastColumnIterator::new(input,suf);
 			let out = iter.by_ref().take(input.len()).to_owned_vec();
 			(out, iter.get_origin())
 		};
-		assert_eq!(origin, 2);
-		let expected = bytes!("rdarcaaaabb");
-		assert_eq!(output.as_slice(), expected.as_slice());
+		assert_eq!(origin, origin_expected);
+		assert_eq!(output.as_slice(), out_expected);
 		let decoded = super::InverseIterator::new(output, origin, suf).to_owned_vec();
 		assert_eq!(input.as_slice(), decoded.as_slice());
+	}
+
+	#[test]
+	fn detailed() {
+		some_detail(bytes!("abracadabra"), [10,7,0,3,5,8,1,4,6,9,2], 2, bytes!("rdarcaaaabb"));
+		some_detail(bytes!("banana"), [5,3,1,0,4,2], 3, bytes!("nnbaaa"));
 	}
 
 	/*#[test]
