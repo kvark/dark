@@ -5,9 +5,9 @@
 //! Dark compressor prototype
 
 
-extern mod compress;
+extern crate compress;
 
-use std::{io, num, os, vec};
+use std::{cmp, io, os, vec};
 use compress::{bwt, dc};
 use compress::entropy::ari;
 
@@ -27,7 +27,7 @@ impl DistanceModel {
 		let num_logs = 33;
 		DistanceModel {
 			freq_log	: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
-				1<<(10 - num::min(10,i))
+				1<<(10 - cmp::min(10,i))
 			}),
 			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..4],
 			num_processed	: 0,
