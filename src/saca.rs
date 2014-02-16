@@ -20,6 +20,21 @@ pub type Suffix = u32;
 static EMPTY: Suffix = 0x80000000;
 
 
+fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
+	for (i,p) in suffixes.mut_iter().enumerate() {
+		*p = i as Suffix;
+	}
+
+	suffixes.sort_by(|&a,&b| {
+		iter::order::cmp(
+			input.slice_from(a as uint).iter(),
+			input.slice_from(b as uint).iter())
+	});
+
+	debug!("sort_direct: {:?}", suffixes);
+}
+
+
 fn fill<T: Pod>(slice: &mut [T], value: T) {
 	for elem in slice.mut_iter() {
 		*elem = value;
@@ -41,6 +56,7 @@ fn get_buckets(input: &[Symbol], buckets: &mut [uint], end: bool) {
 	}
 }
 
+/// Fill LMS strings into the beginning of their buckets
 fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
@@ -78,6 +94,7 @@ fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) 
 	//suffixes[0] = input.len() as Suffix;
 }
 
+/// Induce L-type strings
 fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], clean: bool) {
 	// Find the head of each bucket.
 	get_buckets(input, buckets, false);
@@ -112,6 +129,7 @@ fn induce_l0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 	debug!("induce_l0: result suf {:?}", suffixes);
 }
 
+/// Induce S-type strings
 fn induce_s0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], clean: bool) {
 	// Find the head of each bucket.
 	get_buckets(input, buckets, true);
@@ -134,7 +152,7 @@ fn induce_s0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint], cl
 	debug!("induce_s0: result suf {:?}", suffixes);
 }
 
-fn get_lms_length<T: Eq + Ord + Pod>(input: &[T]) -> uint {
+fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 	if input.len() == 1 {
 		return 1
 	}
@@ -152,74 +170,90 @@ fn get_lms_length<T: Eq + Ord + Pod>(input: &[T]) -> uint {
 	dist+1
 }
 
-fn name_substr<T: Eq + Ord + Pod>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) -> uint {
+fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> uint {
 	// Init the name array buffer.
-	fill(input_new, EMPTY);
+	fill(suffixes.mut_slice_from(n1), EMPTY);
 
  	// Scan to compute the interim s1.
 	let mut pre_pos = 0u;
 	let mut pre_len = 0u;
 	let mut name = 0u;
 	let mut name_count = 0u;
-	for i in range(0, sa_new.len()) {
-		let pos = sa_new[i] as uint;
+	for i in range(0, n1) {
+		let pos = suffixes[i] as uint;
 		let len = get_lms_length(input.slice_from(pos));
+		debug!("LMS at {} has length {}", pos, len);
 		if len != pre_len || input.slice(pre_pos, pre_pos+len) != input.slice(pos, pos+len) {
 			name = i;	// A new name.
 			name_count += 1;
-			sa_new[name] = 1;
+			suffixes[name] = 1;
 			pre_pos = pos;
 			pre_len = len;
 		}else {
-			sa_new[name] += 1;	// Count this name.
+			suffixes[name] += 1;	// Count this name.
 		}
-		input_new[pos>>1] = name as Suffix;
+		suffixes[n1 + (pos>>1)] = name as Suffix;
 	}
 
 	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[m-n1, m-1].
-	{
-		let non_empty = input_new.iter().rev().filter(|&s| *s!=EMPTY);
-		for (suf, val) in sa_new.mut_iter().rev().zip(non_empty) {
-			*suf = *val;
+	let mut j = suffixes.len();
+	for i in range(n1, suffixes.len()).rev() {
+		if suffixes[i] != EMPTY {
+			j -= 1;
+			suffixes[j] = suffixes[i];
 		}
 	}
 
+	debug!("names counts: {:?}", suffixes.slice_to(name_count));
+	debug!("names: {:?}", suffixes.slice_from(j));
+	assert!(j+n1 == suffixes.len());
+
+	name_count
+}
+
+fn rename_substr(suffixes: &[Suffix], input: &mut [Suffix]) {
 	// Rename each S-type character of the interim s1 as the end
 	// of its bucket to produce the final s1.
-	range(1, input_new.len()).rev().fold(true, |succ_t, i| {
-		let prev = input_new[i-1];
-		let cur = input_new[i];
+	range(1, input.len()).rev().fold(true, |succ_t, i| {
+		let prev = input[i-1];
+		let cur = input[i];
 		if prev < cur || (prev == cur && succ_t) {
-			input_new[i-1] += sa_new[prev] - 1;
+			input[i-1] += suffixes[prev] - 1;
 			true
 		}else {
 			false
 		}
 	});
-
-	name_count
 }
 
-fn gather_lms<T: Eq + Ord + Pod>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T] ) {
+fn gather_lms<T: Eq + Ord + Pod>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) {
 	let mut j = input_new.len();
-	j -= 1;
-	input_new[j] = (input.len()-1) as Suffix;
+	//j -= 1; //TODO: remove
+	//input_new[j] = (input.len()-1) as Suffix;
 	
 	// s[n-2] must be L-type
-	input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(&prev,&cur))| {
+	let succ_t = input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(&prev,&cur))| {
 		if prev < cur || (prev == cur && succ_t) {
 			true
 		}else {
 			if succ_t {
 				j -= 1;
-				input_new[j] = i as Suffix;
+				input_new[j] = (i+1) as Suffix;
+				debug!("gather_lms: found suffix {} as input[{}]", i+1, j);
 			}
 			false
 		}
 	});
+
+	if succ_t {	//NEW
+		j -= 1;
+		input_new[j] = 0;
+		debug!("gather_lms: found fist suffix as input[{}]", j);
+	}
+	assert!(j == 0);
 	
 	for suf in sa_new.mut_iter() {
-		*suf = input_new[*suf];
+		*suf = input_new[*suf] + 1;	// later stages assume valid suffixes > 0
 	}
 }
 
@@ -229,18 +263,31 @@ fn put_suffix0(suffixes: &mut [Suffix], n1: uint, input: &[Symbol], buckets: &mu
 
 	for i in range(0,n1).rev() {
 		let p = suffixes[i];
+		assert!(p > 0);
 		suffixes[i] = 0;
-		let sym = input[p];
+		let sym = input[p-1];
 		buckets[sym] -= 1;
+		assert!(buckets[sym] >= i);
 		suffixes[buckets[sym]] = p;
 	}
 
+	debug!("put_suffix0: {:?}", suffixes);
+
+	//TODO: remove
 	// Set the single sentinel suffix.
-	suffixes[0] = (input.len()-1) as Suffix;
+	//suffixes[0] = (input.len()-1) as Suffix;
 }
 
 
-fn saca_k1(input: &[Suffix], suffixes: &mut [Suffix], _level: uint) {
+fn saca_k1(input: &[Suffix], suffixes: &mut [Suffix], _buckets: &mut [uint], level: uint) {
+	debug!("saca_k: entry level {}", level);
+
+	sort_direct(input, suffixes);
+
+	/*put_substr0(suffixes, input, buckets);
+	induce_l0(suffixes, input, buckets, true);
+	induce_s0(suffixes, input, buckets, true);
+
 	//TODO
 	let n1 = 0u;
 
@@ -254,11 +301,12 @@ fn saca_k1(input: &[Suffix], suffixes: &mut [Suffix], _level: uint) {
 	fill(input_new, EMPTY);
 
 	unimplemented!()
-	//TODO
+	//TODO*/
 }
 
 fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 	debug!("saca_k0: entry");
+	assert!(input.len() <= suffixes.len());
 	
 	// Stage 1: reduce the problem by at least 1/2.
 	put_substr0(suffixes, input, buckets);
@@ -279,12 +327,19 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 	// Stage 2: solve the reduced problem.
 	{
 		assert!(n1+n1 <= input.len());
-		let (sa_new, input_new) = suffixes.mut_split_at(n1);
-		let num_names = name_substr(sa_new, input_new, input);
+		let num_names = name_substr(suffixes, n1, input);
+		let num_suffixes = suffixes.len() - n1;
+		debug!("num_names = {}, num_suffixes = {}", num_names, num_suffixes);
+		let (sa_temp, input_new) = suffixes.mut_split_at(num_suffixes);
+		let (sa_new, unused) = sa_temp.mut_split_at(n1);
+		fill(unused, 0);
+		rename_substr(sa_new, input_new);
+		debug!("renamed sa_new: {:?}", sa_new);
+		debug!("renamed input_new: {:?}", input_new);
 
 		if num_names < n1 {
 			// Recurse if names are not yet unique.
-			saca_k1(input_new, sa_new, 1);
+			saca_k1(input_new, sa_new, buckets, 1);
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
@@ -294,12 +349,19 @@ fn saca_k0(input: &[Symbol], suffixes: &mut [Suffix], buckets: &mut [uint]) {
 
 		gather_lms(sa_new, input_new, input);
 		fill(input_new, 0);
+		debug!("Gathered LMS: {:?}", sa_new);
 	}
 
 	// Stage 3: induce SA(S) from SA(S1).
 	put_suffix0(suffixes, n1, input, buckets);
 	induce_l0(suffixes, input, buckets, false);
 	induce_s0(suffixes, input, buckets, false);
+
+	// NEW: reduce suffixes by 1
+	for p in suffixes.mut_iter() {
+		assert!(*p > 0);
+		*p -= 1;
+	}
 }
 
 
@@ -311,14 +373,7 @@ pub fn construct_suffix_array(input: &[Symbol], suffixes: &mut [Suffix]) {
 		let mut buckets = [0u, ..0x100];
 		saca_k0(input, suffixes, buckets.as_mut_slice());
 	}else {
-		for (i,p) in suffixes.mut_iter().enumerate() {
-			*p = i as Suffix;
-		}
-		suffixes.sort_by(|&a,&b| {
-			iter::order::cmp(
-				input.slice_from(a as uint).iter(),
-				input.slice_from(b as uint).iter())
-		});
+		sort_direct(input, suffixes);
 	}
 
 	debug!("construct suf: {:?}", suffixes);
