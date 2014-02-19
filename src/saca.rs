@@ -138,6 +138,8 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		let sym = &input[suf-1];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		if *sym <= input[suf] && *buck as uint <= i { // S-type
+			assert!(*buck>0, "Invalid bucket for symbol {} at suffix {}",
+				sym.to_uint().unwrap(), suf);
 			*buck -= 1;
 			suffixes[*buck] = suf-1;
 			debug!("\tinduce_sup: induced suf[{}] of symbol '{}' to value {}",
@@ -158,7 +160,7 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 
 	let mut dist = 0u;
 	let mut i = 0u;
-	while {i+=1; input[i-1] <= input[i]} {}
+	while {i+=1; i<input.len() && input[i-1] <= input[i]} {}
 	
 	loop {
 		if i >= input.len()-0 || input[i-1] < input[i] {break}
@@ -389,8 +391,8 @@ pub mod test {
 		let (output, origin) = {
 			let suf = con.compute(input);
 			assert_eq!(suf.as_slice(), suf_expected);
-			let mut iter = bwt::TransformIterator::new(input,suf);
-			let out = iter.by_ref().take(input.len()).to_owned_vec();
+			let mut iter = bwt::TransformIterator::new(input, suf);
+			let out = iter.by_ref().to_owned_vec();
 			(out, iter.get_origin())
 		};
 		assert_eq!(origin, origin_expected);
@@ -406,14 +408,23 @@ pub mod test {
 		some_detail(bytes!("banana"), [5,3,1,0,4,2], 3, bytes!("nnbaaa"));
 	}
 
-	/*#[test]
-	fn roundtrip() {
-		let input = include_bin!("../LICENSE");
-		let mut suf = vec::from_elem(input.len(), 0 as Suffix);
-		let mut output = vec::from_elem(input.len(), 0 as Symbol);
-		let origin = super::BW_transform(input, suf, output);
-		let decoded = super::InverseIterator::new(output, origin, suf).
+	fn some_roundtrip(input: &[super::Symbol]) {
+		debug!("Roundtrip {:?}", input);
+		let mut con = super::Constructor::new(input.len());
+		let (output, origin) = {
+			let suf = con.compute(input);
+			let mut iter = bwt::TransformIterator::new(input, suf);
+			let out = iter.by_ref().to_owned_vec();
+			(out, iter.get_origin())	
+		};
+		let decoded = bwt::decode(output, origin, con.reuse().mut_slice_to(input.len())).
 			take(input.len()).to_owned_vec();
 		assert_eq!(input.as_slice(), decoded.as_slice());
-	}*/
+	}
+
+	#[test]
+	fn roundtrips() {
+		some_roundtrip([0,1,5,4,3,0]);
+		//some_roundtrip(include_bin!("../LICENSE"))
+	}
 }

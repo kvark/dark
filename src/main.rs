@@ -23,15 +23,13 @@ pub mod model {
 /// Program entry point
 pub fn main() {
 	let extension = &".dark";
-	let input_path = match os::args() {
-		[_, input, ..] => Path::new(input.clone()),
-		[self_name] => {
-			println!("Dark usage:");
-			println!("\t{} input_file[.dark]", self_name);
-			return
-		},
-		_ => return
-	};
+	let args = os::args();
+	if args.len() <= 1 {
+		println!("Dark usage:");
+		println!("\t{} input_file[.dark]", args[0]);
+		return
+	}
+	let input_path = Path::new(args[1].clone());
 	let mut model = model::dc::new();
 	let file_name = input_path.filename_str().unwrap();
 	if file_name.ends_with(extension) {
