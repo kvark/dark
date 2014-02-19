@@ -66,9 +66,9 @@ pub fn main() {
 			info!("Distance {} for {}", d, sym);
 			Ok(d)
 		}).unwrap();
-		let origin = model.decode(0, &mut dh) as bwt::Suffix;
+		let origin = model.decode(0, &mut dh) as uint;
 		info!("Origin: {}", origin);
-		let mut suf = vec::from_elem(N, N as bwt::Suffix);
+		let mut suf = vec::from_elem(N, N as saca::Suffix);
 		// undo BWT and write output
 		let ext_pos = file_name.len() - extension.len();
 		let out_path = Path::new(format!("{}{}", file_name.slice_to(ext_pos), ".orig"));
@@ -86,7 +86,7 @@ pub fn main() {
 		};
 		let N = input.len();
 		// create temporary suffix array
-		let mut suf = vec::from_elem(N, N as bwt::Suffix);
+		let mut suf = vec::from_elem(N, N as saca::Suffix);
 		// do BWT and DC
 		let (output, origin) = {
 			let mut iter = bwt::encode(input, suf);

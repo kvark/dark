@@ -11,12 +11,13 @@ https://code.google.com/p/ge-nong/
 
 */
 
-use std::{iter, vec};
+use std::{iter, mem, vec};
 use compress::bwt;
 
 pub type Symbol = u8;
-pub type Suffix = u32;
+pub type Suffix = uint;
 
+static SUF_COUNTER	: Suffix = 0x80000000;
 static SUF_INVALID	: Suffix = 0xFFFFFFFF;
 
 
@@ -92,6 +93,72 @@ fn put_substr0(suffixes: &mut [Suffix], input: &[Symbol], buckets: &mut [uint]) 
 	//TODO: evaluate
 	// Set the single sentinel LMS-substring.
 	//suffixes[0] = input.len() as Suffix;
+}
+
+fn put_substr1(suffixes: &mut [Suffix], input: &[Suffix]) {
+	for suf in suffixes.mut_iter() {
+		*suf = SUF_INVALID;
+	}
+	input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(&prev,&cur))| {
+		let succ_next = prev<cur || (prev==cur && succ_t);
+		if succ_next && !succ_t {
+			if (suffixes[cur] & SUF_COUNTER) == 0 {
+				// suffixes[c] is borrowed by the right neighbor bucket.
+				// Shift-right the items in the right neighbor bucket.
+				let mut foo = suffixes[cur];
+				let mut h = cur+1;
+				while (suffixes[h] & SUF_COUNTER) != 0 {
+					mem::swap(&mut foo, &mut suffixes[h]);
+					h += 1;
+				}
+				suffixes[h] = foo;
+				suffixes[cur] = SUF_INVALID;
+			}
+			let d = suffixes[cur];
+			if d == SUF_INVALID {
+				assert!(cur > 0);
+				if suffixes[cur-1] == SUF_INVALID {
+					// Init the counter.
+					suffixes[cur] = SUF_COUNTER + 1;
+					suffixes[cur-1] = (i+1) as Suffix;
+				}else {
+					// A size-1 bucket.
+					suffixes[cur] = (i+1) as Suffix;
+				}
+			}else {
+				let count = d^SUF_COUNTER;
+				let mut pos = cur+count-1;
+				if suffixes[pos] != SUF_INVALID {
+					for h in range(0, count) {
+						suffixes[cur-h] = suffixes[cur-h-1];
+					}
+					pos += 1;
+				}else {
+					// Increase counter
+					suffixes[cur] += 1;
+				}
+				suffixes[pos] = (i+1) as Suffix;
+			}
+		}
+		succ_next
+	});
+
+	// Scan to shift-right the items in each bucket
+	//   with its head being reused as a counter.
+	for i in range(0, suffixes.len()).rev() {
+		let j = suffixes[i];
+		// Is suffixes[i] a counter?
+		if j!=SUF_INVALID && (j&SUF_COUNTER)!=0 {
+			let count = j ^ SUF_COUNTER;
+			for h in range(0, count) {
+				suffixes[i-h] = suffixes[i-h-1];
+			}
+			suffixes[i-count] = SUF_INVALID;
+		}
+	}
+
+	//TODO: remove
+	//SA[0]=n-1;
 }
 
 /// Induce L-type strings
@@ -285,6 +352,8 @@ fn saca_k1(input: &[Suffix], suffixes: &mut [Suffix], _buckets: &mut [uint], lev
 	debug!("saca_k: entry level {}", level);
 
 	sort_direct(input, suffixes);
+
+	put_substr1(suffixes, input);
 
 	/*put_substr0(suffixes, input, buckets);
 	induce_l0(suffixes, input, buckets, true);
@@ -482,11 +551,12 @@ impl<'a> Iterator<Symbol> for InverseIterator<'a> {
 
 #[cfg(test)]
 pub mod test {
-	use std::vec;
-	use super::{SUF_INVALID, Suffix, Symbol};
+	use std::{mem, vec};
+	use super::{SUF_COUNTER, SUF_INVALID, Suffix, Symbol};
 
 	#[test]
 	fn consts() {
+		assert_eq!(SUF_COUNTER, 1<<(mem::size_of::<Suffix>()*8 - 1));
 		assert_eq!(SUF_INVALID, -1 as Suffix);
 	}
 
