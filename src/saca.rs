@@ -6,7 +6,7 @@ worst time: O(N)
 worst space: N bytes (for input) + N words (for suffix array)
 
 # Credit
-Ge Nong and the team:
+Based on the work by Ge Nong team:
 https://code.google.com/p/ge-nong/
 
 */
@@ -20,7 +20,7 @@ pub type Suffix = uint;
 static SUF_INVALID	: Suffix = -1;
 
 
-fn sort_direct<T: TotalOrd>(suffixes: &mut [Suffix], input: &[T]) {
+fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
 	for (i,p) in suffixes.mut_iter().enumerate() {
 		*p = i as Suffix;
 	}
@@ -75,7 +75,7 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 				*buck -= 1;
 				suffixes[*buck] = (i+1) as Suffix;
 				debug!("\tput_substr: detected LMS suf[{}] of symbol '{}', value {}",
-					*buck, cur.to_u8().unwrap() as char, i+1);
+					*buck, cur.to_uint().unwrap(), i+1);
 			}
 			false
 		}
@@ -87,7 +87,7 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 		*buck -= 1;
 		suffixes[*buck] = 0;
 		debug!("\tput_substr: detected LMS suf[{}] of symbol '{}', value {}",
-			*buck, cur.to_u8().unwrap() as char, 0);
+			*buck, cur.to_uint().unwrap(), 0);
 	}
 }
 
@@ -102,7 +102,7 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		let sym = input.last().unwrap();
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		debug!("\tinduce_low: induced suf[{}] of last symbol '{}' to value {}",
-			*buck, sym.to_u8().unwrap() as char, input.len()-1);
+			*buck, sym.to_uint().unwrap(), input.len()-1);
 		suffixes[*buck] = (input.len()-1) as Suffix;
 		*buck += 1;
 	}
@@ -114,7 +114,7 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		if *sym >= input[suf] { // L-type
 			let buck = &mut buckets[sym.to_uint().unwrap()];
 			debug!("\tinduce_low: induced suf[{}] of symbol '{}' to value {}",
-				*buck, sym.to_u8().unwrap() as char, suf-1);
+				*buck, sym.to_uint().unwrap(), suf-1);
 			if !clean || suf != 1 {	//we don't want anything at 0 now
 				suffixes[*buck] = suf-1;
 			}
@@ -142,7 +142,7 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 			*buck -= 1;
 			suffixes[*buck] = suf-1;
 			debug!("\tinduce_sup: induced suf[{}] of symbol '{}' to value {}",
-				*buck, sym.to_u8().unwrap() as char, suf-1);
+				*buck, sym.to_uint().unwrap(), suf-1);
 			if clean {
 				suffixes[i] = SUF_INVALID;
 			}
@@ -195,19 +195,20 @@ fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> u
 		suffixes[n1 + (pos>>1)] = name as Suffix;
 	}
 
-	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[m-n1, m-1].
-	let mut j = suffixes.len();
-	for i in range(n1, suffixes.len()).rev() {
+	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[0, n1].
+	let mut j = 0;
+	for i in range(n1, suffixes.len()) {
 		if suffixes[i] != SUF_INVALID {
-			j -= 1;
+			let value = suffixes[j];
 			suffixes[j] = suffixes[i];
+			suffixes[n1+j] = value;
+			j += 1;
 		}
 	}
 
-	debug!("names counts: {:?}", suffixes.slice_to(name_count));
-	debug!("names: {:?}", suffixes.slice_from(j));
-	assert!(j+n1 == suffixes.len());
-
+	assert_eq!(j, n1);
+	debug!("names: {:?}", suffixes.slice_to(n1));
+	debug!("names counts: {:?}", suffixes.slice(n1, n1+name_count));
 	name_count
 }
 
@@ -246,7 +247,7 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
 	if succ_t {
 		j -= 1;
 		input_new[j] = 0;
-		debug!("\tgather_lms: found fist suffix as input[{}]", j);
+		debug!("\tgather_lms: found first suffix as input[{}]", j);
 	}
 	assert!(j == 0);
 	
@@ -258,6 +259,12 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
 fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], buckets: &mut [uint]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
+
+	//TEMP: copy suffixes to the beginning of the list
+	for i in range(0,n1) {
+		suffixes[i] = suffixes[n1+i];
+		suffixes[n1+i] = SUF_INVALID;
+	}
 
 	for i in range(0,n1).rev() {
 		let p = suffixes[i];
@@ -274,73 +281,103 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 }
 
 
-fn saca<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [uint]) {
+fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) {
 	debug!("saca: entry");
-	assert!(input.len() <= suffixes.len());
-	
-	// Stage 1: reduce the problem by at least 1/2.
-	put_substr(suffixes, input, buckets);
-	induce_low(suffixes, input, buckets, true);
-	induce_sup(suffixes, input, buckets, true);
+	debug!("input len: {}, excess: {}", input.len(), suf_and_buckets.len() - input.len());
+	assert!(input.len() <= suf_and_buckets.len());
 
-	// Now, all the LMS-substrings are sorted and stored sparsely in SA.
-	// Compact all the sorted substrings into the first n1 items of SA.
-	let mut n1 = 0u;
-	for i in range(0, suffixes.len()) {
-		if suffixes[i] != SUF_INVALID {
-			suffixes[n1] = suffixes[i];
-			n1 += 1;
+	// Stage 1: reduce the problem by at least 1/2.
+	let n1 = {
+		let (suffixes, buckets) = suf_and_buckets.mut_split_at(input.len());
+		put_substr(suffixes, input, buckets);
+		induce_low(suffixes, input, buckets, true);
+		induce_sup(suffixes, input, buckets, true);
+
+		// Now, all the LMS-substrings are sorted and stored sparsely in SA.
+		// Compact all the sorted substrings into the first n1 items of SA.
+		let mut n1 = 0u;
+		for i in range(0, suffixes.len()) {
+			if suffixes[i] != SUF_INVALID {
+				suffixes[n1] = suffixes[i];
+				n1 += 1;
+			}
 		}
-	}
-	debug!("Compacted LMS: {:?}", suffixes.slice_to(n1));
+		debug!("Compacted LMS: {:?}", suffixes.slice_to(n1));
+		n1
+	};
 	
 	// Stage 2: solve the reduced problem.
 	{
 		assert!(n1+n1 <= input.len());
-		let num_names = name_substr(suffixes, n1, input);
-		let num_suffixes = suffixes.len() - n1;
-		debug!("num_names = {}, num_suffixes = {}", num_names, num_suffixes);
-		let (sa_temp, input_new) = suffixes.mut_split_at(num_suffixes);
-		let (sa_new, unused) = sa_temp.mut_split_at(n1);
-		fill(unused, SUF_INVALID);
+		let num_names = name_substr(suf_and_buckets, n1, input);
+		debug!("num_names = {}", num_names);
+		assert!(n1+n1+num_names <= suf_and_buckets.len())
+		let (input_new, sa_new) = suf_and_buckets.mut_split_at(n1);
 		rename_substr(sa_new, input_new);
-		debug!("renamed sa_new: {:?}", sa_new);
+		debug!("renamed sa_new: {:?}", sa_new.slice_to(num_names));
 		debug!("renamed input_new: {:?}", input_new);
+		fill(sa_new, SUF_INVALID);
 
 		if num_names < n1 {
 			// Recurse if names are not yet unique.
-			saca(sa_new, input_new, unused);
+			saca(input_new, sa_new);
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
 				sa_new[sym] = i as Suffix;
 			}
+			debug!("Sorted suffixes: {:?}", sa_new.slice_to(n1));
 		}
 
-		gather_lms(sa_new, input_new, input);
+		let slice = sa_new.mut_slice_to(n1);
+		gather_lms(slice, input_new, input);
 		fill(input_new, SUF_INVALID);
-		debug!("Gathered LMS: {:?}", sa_new);
+		debug!("Gathered LMS: {:?}", slice);
 	}
 
 	// Stage 3: induce SA(S) from SA(S1).
-	put_suffix(suffixes, n1, input, buckets);
-	induce_low(suffixes, input, buckets, false);
-	induce_sup(suffixes, input, buckets, false);
+	{
+		let (suffixes, buckets) = suf_and_buckets.mut_split_at(input.len());
+		put_suffix(suffixes, n1, input, buckets);
+		induce_low(suffixes, input, buckets, false);
+		induce_sup(suffixes, input, buckets, false);
+	}
 }
 
 
-/// main entry point for SAC
-pub fn construct_suffix_array(input: &[Symbol], suffixes: &mut [Suffix]) {
-	assert_eq!(input.len(), suffixes.len());
+/// Suffix Array Constructor
+pub struct Constructor {
+	priv suffixes	: ~[Suffix],
+	priv n			: uint,
+}
 
-	if true {
-		let mut buckets = [0u, ..0x8000];
-		saca(suffixes, input, buckets);
-	}else {
-		sort_direct(suffixes, input);
+impl Constructor {
+	/// Create a new instance for a given maximum input size
+	pub fn new(max_n: uint) -> Constructor {
+		let add = 1u<<15;
+		Constructor {
+			suffixes: vec::from_elem(max_n+add, 0 as Suffix),
+			n		: max_n,
+		}
 	}
 
-	debug!("construct suf: {:?}", suffixes);
+	/// Compute the suffix array for a given input
+	pub fn compute<'a>(&'a mut self, input: &[Symbol]) -> &'a [Suffix] {
+		assert_eq!(input.len(), self.n);
+		if true {
+			saca(input, self.suffixes);
+		}else {
+			sort_direct(input, self.suffixes);
+		}
+
+		debug!("construct suf: {:?}", self.suffixes.slice_to(self.n));
+		self.suffixes.slice_to(self.n)
+	}
+
+	/// Temporarily provide the storage for outside needs
+	pub fn reuse<'a>(&'a mut self) -> &'a mut [Suffix] {
+		self.suffixes.as_mut_slice()
+	}
 }
 
 
@@ -379,18 +416,6 @@ impl<'a> Iterator<Symbol> for LastColumnIterator<'a> {
 			}
 		})
 	}
-}
-
-
-/// A helper method to perform BWT on a given block and place the result into output
-/// returns the original string index in the sorted matrix
-pub fn BW_transform(input: &[Symbol], suf: &mut [Suffix], output: &mut [Symbol]) -> uint {
-	construct_suffix_array(input, suf);
-	let mut iter = LastColumnIterator::new(input, suf);
-	for (out,s) in output.mut_iter().zip(iter.by_ref()) {
-		*out = s;
-	}
-	iter.get_origin()
 }
 
 
@@ -450,20 +475,18 @@ impl<'a> Iterator<Symbol> for InverseIterator<'a> {
 
 #[cfg(test)]
 pub mod test {
-	use std::{vec};
-	use super::{Suffix, Symbol};
-
-	fn some_detail(input: &[Symbol], suf_expected: &[Suffix], origin_expected: uint, out_expected: &[Symbol]) {
-		let mut suf = vec::from_elem(input.len(), 0 as Suffix);
-		super::construct_suffix_array(input, suf);
-		assert_eq!(suf.as_slice(), suf_expected);
+	fn some_detail(input: &[super::Symbol], suf_expected: &[super::Suffix], origin_expected: uint, out_expected: &[super::Symbol]) {
+		let mut con = super::Constructor::new(input.len());
 		let (output, origin) = {
+			let suf = con.compute(input);
+			assert_eq!(suf.as_slice(), suf_expected);
 			let mut iter = super::LastColumnIterator::new(input,suf);
 			let out = iter.by_ref().take(input.len()).to_owned_vec();
 			(out, iter.get_origin())
 		};
 		assert_eq!(origin, origin_expected);
 		assert_eq!(output.as_slice(), out_expected);
+		let suf = con.reuse().mut_slice_to(input.len());
 		let decoded = super::InverseIterator::new(output, origin, suf).to_owned_vec();
 		assert_eq!(input.as_slice(), decoded.as_slice());
 	}
