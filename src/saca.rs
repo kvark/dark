@@ -15,7 +15,7 @@ use std::{iter, vec};
 use compress::bwt;
 
 pub type Symbol = u8;
-pub type Suffix = uint;
+pub type Suffix = u32;
 
 static SUF_INVALID	: Suffix = -1;
 
@@ -41,7 +41,7 @@ fn fill<T: Pod>(slice: &mut [T], value: T) {
 	}
 }
 
-fn get_buckets<T: ToPrimitive>(input: &[T], buckets: &mut [uint], end: bool) {
+fn get_buckets<T: ToPrimitive>(input: &[T], buckets: &mut [Suffix], end: bool) {
 	fill(buckets, 0);
 
 	for sym in input.iter() {
@@ -49,7 +49,7 @@ fn get_buckets<T: ToPrimitive>(input: &[T], buckets: &mut [uint], end: bool) {
 	}
 
 	//let mut sum = 1u;	// Sentinel is below
-	let mut sum = 0u;
+	let mut sum = 0 as Suffix;
 	for buck in buckets.mut_iter() {
 		sum += *buck;
 		*buck = if end {sum} else {sum - *buck};
@@ -57,7 +57,7 @@ fn get_buckets<T: ToPrimitive>(input: &[T], buckets: &mut [uint], end: bool) {
 }
 
 /// Fill LMS strings into the beginning of their buckets
-fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [uint]) {
+fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [Suffix]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
 	
@@ -93,7 +93,7 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 
 
 /// Induce L-type strings
-fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [uint], clean: bool) {
+fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [Suffix], clean: bool) {
 	// Find the head of each bucket.
 	get_buckets(input, buckets, false);
 
@@ -129,7 +129,7 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 }
 
 /// Induce S-type strings
-fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [uint], clean: bool) {
+fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [Suffix], clean: bool) {
 	// Find the head of each bucket.
 	get_buckets(input, buckets, true);
 
@@ -138,7 +138,7 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		if suf == SUF_INVALID || suf == 0 {continue}
 		let sym = &input[suf-1];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
-		if *sym <= input[suf] && *buck <= i { // S-type
+		if *sym <= input[suf] && *buck as uint <= i { // S-type
 			*buck -= 1;
 			suffixes[*buck] = suf-1;
 			debug!("\tinduce_sup: induced suf[{}] of symbol '{}' to value {}",
@@ -256,7 +256,7 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
 	}
 }
 
-fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], buckets: &mut [uint]) {
+fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], buckets: &mut [Suffix]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
 
@@ -273,7 +273,7 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 		let sym = &input[p];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		*buck -= 1;
-		assert!(*buck >= i);
+		assert!(*buck as uint >= i);
 		suffixes[*buck] = p;
 	}
 

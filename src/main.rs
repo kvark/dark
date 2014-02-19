@@ -8,7 +8,7 @@
 extern crate compress;
 
 use std::{io, os, vec};
-use compress::{bwt, dc};
+use compress::bwt;
 use compress::entropy::ari;
 
 /// Suffix Array Construction Algorithm (SACA)
@@ -47,7 +47,7 @@ pub fn main() {
 		// create temporaries
 		let mut input = vec::from_elem(N, 0u8);
 		// decode alphabit
-		let mut mtf = dc::MTF::new();
+		let mut mtf = bwt::mtf::MTF::new();
 		let E = in_file.read_u8().unwrap() as uint;
 		let mut alphabet = [0u8, ..0x100];
 		let alpha_opt = if E == 0 {
@@ -61,10 +61,10 @@ pub fn main() {
 		// decode distances
 		let mut dh = ari::Decoder::new(in_file);
 		dh.start().unwrap();
-		dc::decode(alpha_opt, input, &mut mtf, |sym| {
+		bwt::dc::decode(alpha_opt, input, &mut mtf, |sym| {
 			let d = model.decode(sym, &mut dh);
 			info!("Distance {} for {}", d, sym);
-			Ok(d)
+			Ok(d as uint)
 		}).unwrap();
 		let origin = model.decode(0, &mut dh) as uint;
 		info!("Origin: {}", origin);
@@ -93,8 +93,8 @@ pub fn main() {
 			let out = iter.to_owned_vec();
 			(out, iter.get_origin())
 		};
-		let mut mtf = dc::MTF::new();
-		let dc_init = dc::encode(output, suf, &mut mtf);
+		let mut mtf = bwt::mtf::MTF::new();
+		let dc_init = bwt::dc::encode(output, suf, &mut mtf);
 		// compress to the output
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));
 		let mut out_file = io::File::create(&out_path).unwrap();
@@ -105,7 +105,7 @@ pub fn main() {
 		let mut helper = if E > 111 {
 			info!("Alphabet is sparse");
 			out_file.write_u8(0).unwrap();
-			let mut rd = [N as dc::Distance, ..0x100];
+			let mut rd = [N as model::dc::Distance, ..0x100];
 			for &(sym,d) in dc_init.iter() {
 				rd[sym] = d;
 			}
@@ -127,14 +127,14 @@ pub fn main() {
 		};
 		// encode distances
 		for (&d,&sym) in suf.iter().zip(output.iter()) {
-			if d<N {
+			if (d as uint) < N {
 				info!("Distance {} for {}", d, sym);
 				model.encode(d, sym, &mut helper);
 			}
 		}
 		// done
 		info!("Origin: {}", origin);
-		model.encode(origin, 0, &mut helper);
+		model.encode(origin as model::dc::Distance, 0, &mut helper);
 		let (_, err) = helper.finish();
 		err.unwrap();
 		info!("Encoded {} distances", model.num_processed);
