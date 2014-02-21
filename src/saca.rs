@@ -261,11 +261,15 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
 
+	fill(suffixes.mut_slice_from(2*n1), SUF_INVALID);
+
 	//TEMP: copy suffixes to the beginning of the list
 	for i in range(0,n1) {
 		suffixes[i] = suffixes[n1+i];
 		suffixes[n1+i] = SUF_INVALID;
 	}
+
+	debug!("put_suffix prelude: {:?}", suffixes);
 
 	for i in range(0,n1).rev() {
 		let p = suffixes[i];
@@ -342,6 +346,13 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) 
 		put_suffix(suffixes, n1, input, buckets);
 		induce_low(suffixes, input, buckets, false);
 		induce_sup(suffixes, input, buckets, false);
+
+		if log_enabled!(4) {
+			for (i,p) in suffixes.iter().enumerate() {
+				assert_eq!(suffixes.slice_to(i).iter().find(|suf| *suf==p), None);
+				assert!(i == 0 || input[suffixes[i-1]] <= input[suffixes[i]]);
+			}	
+		}
 	}
 }
 
@@ -384,6 +395,7 @@ impl Constructor {
 
 #[cfg(test)]
 pub mod test {
+	use test;
 	use compress::bwt;
 
 	fn some_detail(input: &[super::Symbol], suf_expected: &[super::Suffix], origin_expected: uint, out_expected: &[super::Symbol]) {
@@ -409,7 +421,6 @@ pub mod test {
 	}
 
 	fn some_roundtrip(input: &[super::Symbol]) {
-		debug!("Roundtrip {:?}", input);
 		let mut con = super::Constructor::new(input.len());
 		let (output, origin) = {
 			let suf = con.compute(input);
@@ -424,7 +435,16 @@ pub mod test {
 
 	#[test]
 	fn roundtrips() {
-		some_roundtrip([0,1,5,4,3,0]);
-		//some_roundtrip(include_bin!("../LICENSE"))
+		some_roundtrip(include_bin!("../LICENSE"))
 	}
+
+    #[bench]
+    fn speed(bh: &mut test::BenchHarness) {
+        let input = include_bin!("../LICENSE");
+        let mut con = super::Constructor::new(input.len());
+        bh.iter(|| {
+            con.compute(input);
+        });
+        bh.bytes = input.len() as u64;
+    }
 }

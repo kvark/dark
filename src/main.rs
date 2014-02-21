@@ -6,6 +6,8 @@
 
 
 extern crate compress;
+#[cfg(test)]
+extern crate test;
 
 use std::{io, os, vec};
 use compress::bwt;
