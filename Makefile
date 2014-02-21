@@ -18,8 +18,16 @@ test-lib: ${LIB_PATH}
 dark: Makefile src/*.rs ${LIB_PATH}
 	rustc -L ${LIB_DIR} -o dark src/main.rs
 
+release: Makefile src/*.rs ${LIB_PATH}
+	rustc -O -L ${LIB_DIR} -o release src/main.rs
+
 test: Makefile src/*.rs ${LIB_PATH}
 	rustc -L ${LIB_DIR} --test -o test src/main.rs
+	./test
+
+bench: Makefile src/*.rs ${LIB_PATH}
+	rustc -O -L ${LIB_DIR} --test -o bench src/main.rs
+	./bench --bench
 
 clean:
 	rm ${LIB_PATH} ./dark

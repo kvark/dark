@@ -86,14 +86,16 @@ pub fn main() {
 		};
 		let N = input.len();
 		// create temporary suffix array
-		let mut suf = vec::from_elem(N, N as saca::Suffix);
+		let mut con = saca::Constructor::new(N);
 		// do BWT and DC
 		let (output, origin) = {
-			let mut iter = bwt::encode(input, suf);
+			let suf = con.compute(input);
+			let mut iter = bwt::TransformIterator::new(input, suf);
 			let out = iter.to_owned_vec();
 			(out, iter.get_origin())
 		};
 		let mut mtf = bwt::mtf::MTF::new();
+		let suf = con.reuse().mut_slice_to(N);
 		let dc_init = bwt::dc::encode(output, suf, &mut mtf);
 		// compress to the output
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));

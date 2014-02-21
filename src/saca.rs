@@ -261,8 +261,6 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
 
-	fill(suffixes.mut_slice_from(2*n1), SUF_INVALID);
-
 	//TEMP: copy suffixes to the beginning of the list
 	for i in range(0,n1) {
 		suffixes[i] = suffixes[n1+i];
@@ -334,8 +332,9 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) 
 			debug!("Sorted suffixes: {:?}", sa_new.slice_to(n1));
 		}
 
-		let slice = sa_new.mut_slice_to(n1);
+		let (slice, rest) = sa_new.mut_split_at(n1);
 		gather_lms(slice, input_new, input);
+		fill(rest, SUF_INVALID);
 		fill(input_new, SUF_INVALID);
 		debug!("Gathered LMS: {:?}", slice);
 	}
