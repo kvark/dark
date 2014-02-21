@@ -1,7 +1,8 @@
 use std::{cmp, io};
-use compress::dc;
 use compress::entropy::ari;
 
+
+pub type Distance = u32;
 
 /// Coding model for BWT-DC output
 pub struct Model {
@@ -25,8 +26,8 @@ impl Model {
 	}
 
 	/// Encode the distance of a symbol, using the Arithmetic coder
-	pub fn encode<W: io::Writer>(&mut self, dist: dc::Distance, _sym: u8, eh: &mut ari::Encoder<W>) {
-		fn int_log(d: dc::Distance) -> uint {
+	pub fn encode<W: io::Writer>(&mut self, dist: Distance, _sym: u8, eh: &mut ari::Encoder<W>) {
+		fn int_log(d: Distance) -> uint {
 			let mut log = 0;
 			while d>>log !=0 {log += 1;}
 			log
@@ -38,7 +39,7 @@ impl Model {
 		self.freq_log.update(log, 10, 1);
 		// write mantissa
 		for i in range(1,log) {
-			let bit = (dist>>(log-i-1)) & 1;
+			let bit = (dist>>(log-i-1)) as uint & 1;
 			if i >= self.freq_rest.len() {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
@@ -51,14 +52,14 @@ impl Model {
 	}
 
 	/// Decode the distance of a symbol, using the Arithmetic coder
-	pub fn decode<R: io::Reader>(&mut self, _sym: u8, dh: &mut ari::Decoder<R>) -> dc::Distance {
+	pub fn decode<R: io::Reader>(&mut self, _sym: u8, dh: &mut ari::Decoder<R>) -> Distance {
 		self.num_processed += 1;
 		let log = dh.decode(&self.freq_log).unwrap();
 		self.freq_log.update(log, 10, 1);
 		if log == 0 {
 			return 0
 		}
-		let mut dist = 1 as dc::Distance;
+		let mut dist = 1 as Distance;
 		for i in range(1,log) {
 			let bit = if i >= self.freq_rest.len() {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
@@ -68,7 +69,7 @@ impl Model {
 				table.update(bit, 8, 1);
 				bit
 			};
-			dist = (dist<<1) + bit;
+			dist = (dist<<1) + (bit as Distance);
 		}
 		dist
 	}
