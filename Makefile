@@ -16,6 +16,7 @@ test-lib: ${LIB_PATH}
 
 
 bin/dark: Makefile src/*.rs ${LIB_PATH}
+	mkdir -p bin
 	rustc -L ${LIB_DIR} -o bin/dark src/main.rs
 
 bin/release: Makefile src/*.rs ${LIB_PATH}

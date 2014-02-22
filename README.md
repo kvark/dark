@@ -1,7 +1,6 @@
 ## Dark compressor
 
 [![Build Status](https://travis-ci.org/kvark/dark.png?branch=master)](https://travis-ci.org/kvark/dark)
-Check it out:
 ```
 git clone https://github.com/kvark/dark
 cd dark
