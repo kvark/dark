@@ -3,7 +3,7 @@ LIB_PATH	=${LIB_DIR}/libcompress-*.rlib
 
 .PHONY: all deps pack pack-small test-lib
 
-all: dark
+all: bin/dark
 
 
 deps: ${LIB_PATH}
@@ -15,39 +15,39 @@ test-lib: ${LIB_PATH}
 	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
 
 
-dark: Makefile src/*.rs ${LIB_PATH}
-	rustc -L ${LIB_DIR} -o dark src/main.rs
+bin/dark: Makefile src/*.rs ${LIB_PATH}
+	rustc -L ${LIB_DIR} -o bin/dark src/main.rs
 
-release: Makefile src/*.rs ${LIB_PATH}
-	rustc -O -L ${LIB_DIR} -o release src/main.rs
+bin/release: Makefile src/*.rs ${LIB_PATH}
+	rustc -O -L ${LIB_DIR} -o bin/release src/main.rs
 
-test: Makefile src/*.rs ${LIB_PATH}
-	rustc -L ${LIB_DIR} --test -o test src/main.rs
-	./test
+bin/test: Makefile src/*.rs ${LIB_PATH}
+	rustc -L ${LIB_DIR} --test -o bin/test src/main.rs
+	bin/test
 
-bench: Makefile src/*.rs ${LIB_PATH}
-	rustc -O -L ${LIB_DIR} --test -o bench src/main.rs
-	./bench --bench
+bin/bench: Makefile src/*.rs ${LIB_PATH}
+	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
+	bin/bench --bench
 
 clean:
-	rm ${LIB_PATH} ./dark
+	rm ${LIB_PATH} bin/*
 
 
-pack-small: dark
-	./dark ${LIB_DIR}/data/test.txt
-	./dark test.txt.dark
+pack-small: bin/dark
+	bin/dark ${LIB_DIR}/data/test.txt
+	bin/dark test.txt.dark
 	cmp ${LIB_DIR}/data/test.txt test.txt.orig
 	ls -l test.txt.dark
 
-pack-large: dark
-	./dark ${LIB_DIR}/data/test.large
-	./dark test.large.dark
+pack-large: bin/dark
+	bin/dark ${LIB_DIR}/data/test.large
+	bin/dark test.large.dark
 	cmp ${LIB_DIR}/data/test.large test.large.orig
 	ls -l test.large.dark
 
-pack: dark
+pack: bin/dark
 	echo -n "abracadabra" >in.dat
-	./dark in.dat
-	./dark in.dat.dark
+	bin/dark in.dat
+	bin/dark in.dat.dark
 	cat in.dat.orig && echo ""
 	rm in.dat*

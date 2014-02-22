@@ -62,7 +62,6 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 	
 	// Set each item in SA as empty.
 	fill(suffixes, SUF_INVALID);
-	// Active suffixes have +1 value added to them
 
 	// Last string is L-type
 	let succ_t = input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(prev,cur))| {
@@ -96,7 +95,7 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 	// Find the head of each bucket.
 	get_buckets(input, buckets, false);
 
-	// Process sentinel as L-type (NEW)
+	// Process sentinel as L-type
 	{
 		let sym = input.last().unwrap();
 		let buck = &mut buckets[sym.to_uint().unwrap()];
@@ -173,6 +172,7 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 
 fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> uint {
 	// Init the name array buffer.
+	assert_eq!(suffixes.len(), input.len());
 	fill(suffixes.mut_slice_from(n1), SUF_INVALID);
 
  	// Scan to compute the interim s1.
@@ -284,14 +284,16 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 }
 
 
-fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) {
+fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, suf_and_buckets: &mut [Suffix]) {
 	debug!("saca: entry");
-	debug!("input len: {}, excess: {}", input.len(), suf_and_buckets.len() - input.len());
-	assert!(input.len() <= suf_and_buckets.len());
+	assert!(input.len() + alphabet_size <= suf_and_buckets.len());
 
 	// Stage 1: reduce the problem by at least 1/2.
 	let n1 = {
-		let (suffixes, buckets) = suf_and_buckets.mut_split_at(input.len());
+		let (suffixes, rest) = suf_and_buckets.mut_split_at(input.len());
+		let excess = rest.len();
+		debug!("input len: {}, excess: {}", input.len(), excess);
+		let (_,buckets) = rest.mut_split_at(excess - alphabet_size);
 		put_substr(suffixes, input, buckets);
 		induce_low(suffixes, input, buckets, true);
 		induce_sup(suffixes, input, buckets, true);
@@ -312,7 +314,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) 
 	// Stage 2: solve the reduced problem.
 	{
 		assert!(n1+n1 <= input.len());
-		let num_names = name_substr(suf_and_buckets, n1, input);
+		let num_names = name_substr(suf_and_buckets.mut_slice_to(input.len()), n1, input);
 		debug!("num_names = {}", num_names);
 		assert!(n1+n1+num_names <= suf_and_buckets.len())
 		let (input_new, sa_new) = suf_and_buckets.mut_split_at(n1);
@@ -322,8 +324,9 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) 
 		fill(sa_new, SUF_INVALID);
 
 		if num_names < n1 {
+			//TODO: why can't we use num_names as the alphabet size?
 			// Recurse if names are not yet unique.
-			saca(input_new, sa_new);
+			saca(input_new, n1, sa_new);
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
@@ -341,7 +344,9 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], suf_and_buckets: &mut [Suffix]) 
 
 	// Stage 3: induce SA(S) from SA(S1).
 	{
-		let (suffixes, buckets) = suf_and_buckets.mut_split_at(input.len());
+		let (suffixes, rest) = suf_and_buckets.mut_split_at(input.len());
+		let excess = rest.len();
+		let (_, buckets) = rest.mut_split_at(excess - alphabet_size);
 		put_suffix(suffixes, n1, input, buckets);
 		induce_low(suffixes, input, buckets, false);
 		induce_sup(suffixes, input, buckets, false);
@@ -376,7 +381,7 @@ impl Constructor {
 	pub fn compute<'a>(&'a mut self, input: &[Symbol]) -> &'a [Suffix] {
 		assert_eq!(input.len(), self.n);
 		if true {
-			saca(input, self.suffixes);
+			saca(input, 0x100, self.suffixes);
 		}else {
 			sort_direct(input, self.suffixes);
 		}
