@@ -4,7 +4,7 @@
 
 //! Dark compressor prototype
 
-
+extern crate native;
 extern crate compress;
 #[cfg(test)]
 extern crate test;
@@ -36,7 +36,7 @@ pub fn main() {
 	let file_name = input_path.filename_str().unwrap();
 	if file_name.ends_with(extension) {
 		let mut in_file = match io::File::open(&input_path) {
-			Ok(file) => file,
+			Ok(file) => io::BufferedReader::new(file),
 			Err(e) => {
 				println!("Input {} can not be read: {}", input_path.as_str(), e.to_str());
 				return;
@@ -72,10 +72,11 @@ pub fn main() {
 		// undo BWT and write output
 		let ext_pos = file_name.len() - extension.len();
 		let out_path = Path::new(format!("{}{}", file_name.slice_to(ext_pos), ".orig"));
-		let mut out_file = io::File::create(&out_path);
+		let mut out_file = io::BufferedWriter::new(io::File::create(&out_path));
 		for b in bwt::decode(input, origin, suf) {
 			out_file.write_u8(b).unwrap();
 		}
+		out_file.flush().unwrap();
 	}else {
 		let input = match io::File::open(&input_path).read_to_end() {
 			Ok(data) => data,
@@ -99,7 +100,7 @@ pub fn main() {
 		let dc_init = bwt::dc::encode(output, suf, &mut mtf);
 		// compress to the output
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));
-		let mut out_file = io::File::create(&out_path).unwrap();
+		let mut out_file = io::BufferedWriter::new(io::File::create(&out_path).unwrap());
 		info!("Encoding N: {}", N);
 		out_file.write_le_u32(N as u32).unwrap();
 		// encode alphabet
