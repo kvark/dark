@@ -170,62 +170,37 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 	dist+1
 }
 
-fn name_substr<T: Eq + Ord>(suffixes: &mut [Suffix], n1: uint, input: &[T]) -> uint {
+fn name_substr<T: Eq + Ord>(suf_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) -> uint {
 	// Init the name array buffer.
-	assert_eq!(suffixes.len(), input.len());
-	fill(suffixes.mut_slice_from(n1), SUF_INVALID);
+	fill(suf_new, SUF_INVALID);
 
  	// Scan to compute the interim s1.
 	let mut pre_pos = 0u;
 	let mut pre_len = 0u;
-	let mut name = 0u;
-	let mut name_count = 0u;
-	for i in range(0, n1) {
-		let pos = suffixes[i] as uint;
+	let mut name = -1u;
+	for suf in input_new.iter() {
+		let pos = *suf as uint;
 		let len = get_lms_length(input.slice_from(pos));
 		debug!("\tLMS at {} has length {}", pos, len);
 		if len != pre_len || input.slice(pre_pos, pre_pos+len) != input.slice(pos, pos+len) {
-			name = i;	// A new name.
-			name_count += 1;
-			suffixes[name] = 1;
+			name += 1;	// A new name.
 			pre_pos = pos;
 			pre_len = len;
-		}else {
-			suffixes[name] += 1;	// Count this name.
 		}
-		suffixes[n1 + (pos>>1)] = name as Suffix;
+		suf_new[pos>>1] = name as Suffix;
 	}
 
-	// Compact the interim s1 sparsely stored in SA[n1, n-1] into SA[0, n1].
-	let mut j = 0;
-	for i in range(n1, suffixes.len()) {
-		if suffixes[i] != SUF_INVALID {
-			let value = suffixes[j];
-			suffixes[j] = suffixes[i];
-			suffixes[n1+j] = value;
+	let mut j = 0u;
+	for i in range(0, suf_new.len()) {
+		if suf_new[i] != SUF_INVALID {
+			input_new[j] = suf_new[i];
+			suf_new[i] = SUF_INVALID;
 			j += 1;
 		}
 	}
 
-	assert_eq!(j, n1);
-	debug!("names: {:?}", suffixes.slice_to(n1));
-	debug!("names counts: {:?}", suffixes.slice(n1, n1+name_count));
-	name_count
-}
-
-fn rename_substr(suffixes: &[Suffix], input: &mut [Suffix]) {
-	// Rename each S-type character of the interim s1 as the end
-	// of its bucket to produce the final s1.
-	range(1, input.len()).rev().fold(true, |succ_t, i| {
-		let prev = input[i-1];
-		let cur = input[i];
-		if prev < cur || (prev == cur && succ_t) {
-			input[i-1] += suffixes[prev] - 1;
-			true
-		}else {
-			false
-		}
-	});
+	assert!(j == input_new.len());
+	name+1
 }
 
 fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) {
@@ -300,33 +275,32 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, suf_and_buc
 
 		// Now, all the LMS-substrings are sorted and stored sparsely in SA.
 		// Compact all the sorted substrings into the first n1 items of SA.
-		let mut n1 = 0u;
+		let mut lms_count = 0u;
 		for i in range(0, suffixes.len()) {
 			if suffixes[i] != SUF_INVALID {
-				suffixes[n1] = suffixes[i];
-				n1 += 1;
+				let value = suffixes[i];
+				suffixes[i] = SUF_INVALID;
+				suffixes[lms_count] = value;
+				lms_count += 1;
 			}
 		}
-		debug!("Compacted LMS: {:?}", suffixes.slice_to(n1));
-		n1
+
+		debug!("Compacted LMS: {:?}", suffixes.slice_to(lms_count));
+		fill(buckets, SUF_INVALID);
+		lms_count
 	};
 	
 	// Stage 2: solve the reduced problem.
 	{
 		assert!(n1+n1 <= input.len());
-		let num_names = name_substr(suf_and_buckets.mut_slice_to(input.len()), n1, input);
-		debug!("num_names = {}", num_names);
-		assert!(n1+n1+num_names <= suf_and_buckets.len())
 		let (input_new, sa_new) = suf_and_buckets.mut_split_at(n1);
-		rename_substr(sa_new, input_new);
-		debug!("renamed sa_new: {:?}", sa_new.slice_to(num_names));
-		debug!("renamed input_new: {:?}", input_new);
-		fill(sa_new, SUF_INVALID);
+		let num_names = name_substr(sa_new, input_new, input);	//TODO: use shorter sa_new
+		debug!("named input_new: {:?}", input_new);
+		debug!("num_names = {}", num_names);
 
 		if num_names < n1 {
-			//TODO: why can't we use num_names as the alphabet size?
 			// Recurse if names are not yet unique.
-			saca(input_new, n1, sa_new);
+			saca(input_new, num_names, sa_new);
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
@@ -439,7 +413,7 @@ pub mod test {
 
 	#[test]
 	fn roundtrips() {
-		some_roundtrip(include_bin!("../LICENSE"))
+		some_roundtrip(include_bin!("../LICENSE"));
 	}
 
     #[bench]
