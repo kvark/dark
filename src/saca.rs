@@ -11,7 +11,7 @@ https://code.google.com/p/ge-nong/
 
 */
 
-use std::{iter, vec};
+use std::{cmp, iter, vec};
 
 pub type Symbol = u8;
 pub type Suffix = u32;
@@ -332,9 +332,11 @@ pub struct Constructor {
 impl Constructor {
 	/// Create a new instance for a given maximum input size
 	pub fn new(max_n: uint) -> Constructor {
-		let add = 1u<<15;
+		let extra_2s = (1u<<15) + (1u<<7u);
+		let extra = 0x100 + cmp::max(max_n/4, cmp::min(extra_2s, max_n/2));
+		info!("n: {}, extra words: {}", max_n, extra);
 		Constructor {
-			suffixes: vec::from_elem(max_n+add, 0 as Suffix),
+			suffixes: vec::from_elem(max_n+extra, 0 as Suffix),
 			n		: max_n,
 		}
 	}
@@ -402,6 +404,7 @@ pub mod test {
 	#[test]
 	fn roundtrips() {
 		some_roundtrip(include_bin!("../LICENSE"));
+		//some_roundtrip(include_bin!("../bin/dark"));
 	}
 
     #[bench]
