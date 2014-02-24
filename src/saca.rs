@@ -136,7 +136,8 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		if suf == SUF_INVALID || suf == 0 {continue}
 		let sym = &input[suf-1];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
-		if *sym <= input[suf] && *buck as uint <= i { // S-type
+		if *buck as uint <= i { // S-type
+			assert!(*sym <= input[suf]);
 			assert!(*buck>0, "Invalid bucket for symbol {} at suffix {}",
 				sym.to_uint().unwrap(), suf);
 			*buck -= 1;
