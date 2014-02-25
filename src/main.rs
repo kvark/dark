@@ -114,6 +114,7 @@ pub fn main() {
 			}
 			let mut eh = ari::Encoder::new(out_file);
 			for (sym,&d) in rd.iter().enumerate() {
+				info!("Init distance {} for {}", d, sym);
 				model.encode(d, sym as u8, &mut eh);
 			}
 			eh
