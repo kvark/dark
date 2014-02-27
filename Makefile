@@ -12,7 +12,7 @@ clean:
 	rm ${LIB_PATH} bin/*
 
 ${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
-	cd ${LIB_DIR} && rustc lib.rs
+	cd ${LIB_DIR} && rustc -O -g lib.rs
 
 test-lib: ${LIB_PATH}
 	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
@@ -33,7 +33,10 @@ bin/bench: Makefile src/*.rs ${LIB_PATH}
 	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
 
 bin/profile: Makefile src/*.rs ${LIB_PATH}
-	rustc -O -g -L ${LIB_DIR} --test -o bin/profile src/main.rs
+	rustc -O -g -L ${LIB_DIR} -o bin/profile src/main.rs
+
+bin/profile-saca: Makefile src/*.rs ${LIB_PATH}
+	rustc -O -g -L ${LIB_DIR} --test -o bin/profile-saca src/main.rs
 
 
 test: bin/test
@@ -42,11 +45,16 @@ test: bin/test
 bench: bin/bench
 	bin/bench --bench
 
-profile: callgrind.saca
+profile-saca: callgrind.saca
+profile: callgrind.dark
 
-callgrind.saca: bin/profile
-	valgrind --tool=callgrind bin/profile --bench
+callgrind.saca: bin/profile-saca
+	valgrind --tool=callgrind bin/profile-saca --bench
 	mv callgrind.out.* callgrind.saca
+
+callgrind.dark: bin/profile bin/dark
+	valgrind --tool=callgrind bin/profile bin/dark
+	mv callgrind.out.* callgrind.dark
 
 
 pack-small: bin/dark

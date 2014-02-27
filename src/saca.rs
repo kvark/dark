@@ -3,7 +3,7 @@
 Suffix Array Construction
 
 worst time: O(N)
-worst space: N bytes (for input) + N words (for suffix array)
+worst space: N bytes (for input) + N words (for suffix array) + N/4 words (extra)
 
 # Credit
 Based on the work by Ge Nong team:
