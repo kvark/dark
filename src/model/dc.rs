@@ -8,6 +8,7 @@ pub type Distance = u32;
 pub struct Model {
 	priv freq_log	: ari::FrequencyTable,
 	priv freq_rest	: [ari::BinaryModel, ..4],
+	priv threshold	: ari::Border,
 	/// number of distances processed
 	num_processed	: uint,
 }
@@ -17,11 +18,20 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let num_logs = 33;
 		Model {
-			freq_log	: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
+			freq_log		: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
 				1<<(10 - cmp::min(10,i))
 			}),
-			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..4],
+			freq_rest		: [ari::BinaryModel::new_flat(threshold), ..4],
+			threshold		: threshold,
 			num_processed	: 0,
+		}
+	}
+
+	/// Reset the model to a simple redundant state
+	pub fn reset(&mut self) {
+		self.freq_log.reset_flat();
+		for bm in self.freq_rest.mut_iter() {
+			*bm = ari::BinaryModel::new_flat(self.threshold);
 		}
 	}
 

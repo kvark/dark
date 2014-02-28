@@ -20,13 +20,10 @@ test-lib: ${LIB_PATH}
 
 bin/dark: Makefile src/*.rs ${LIB_PATH}
 	mkdir -p bin
-	rustc -L ${LIB_DIR} -o bin/dark src/main.rs
-
-bin/release: Makefile src/*.rs ${LIB_PATH}
-	rustc -O -L ${LIB_DIR} -o bin/release src/main.rs
+	rustc -O -L ${LIB_DIR} -o bin/dark src/main.rs
 
 bin/test: Makefile src/*.rs ${LIB_PATH}
-	rustc -L ${LIB_DIR} --test -o bin/test src/main.rs
+	rustc -O -L ${LIB_DIR} --test -o bin/test src/main.rs
 	
 
 bin/bench: Makefile src/*.rs ${LIB_PATH}

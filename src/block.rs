@@ -15,7 +15,8 @@ use saca;
 pub struct Encoder {
 	priv sac	: saca::Constructor,
 	priv mtf	: bwt::mtf::MTF,
-	priv model	: model::dc::Model,
+	/// Encoding model
+	model		: model::dc::Model,
 }
 
 impl Encoder {
@@ -88,7 +89,8 @@ pub struct Decoder {
 	priv input		: ~[u8],
 	priv suffixes	: ~[saca::Suffix],
 	priv mtf		: bwt::mtf::MTF,
-	priv model		: model::dc::Model,
+	/// Encoding model
+	model			: model::dc::Model,
 }
 
 impl Decoder {
@@ -132,5 +134,59 @@ impl Decoder {
 		}
 		let result = writer.flush();
 		(dh.finish(), writer, result)
+	}
+}
+
+
+#[cfg(test)]
+pub mod test {
+	use std::{io, vec};
+	use test;
+
+	fn roundtrip(bytes: &[u8]) {
+		let (writer, err) = super::Encoder::new(bytes.len()).encode(bytes, io::MemWriter::new());
+		err.unwrap();
+		let buffer = writer.unwrap();
+		let reader = io::BufReader::new(buffer);
+		let (_, output, err) = super::Decoder::new(bytes.len()).decode(reader, io::MemWriter::new());
+		err.unwrap();
+		let decoded = output.unwrap();
+		assert_eq!(bytes.as_slice(), decoded.as_slice());
+	}
+	
+	#[test]
+	fn roundtrips() {
+		roundtrip(bytes!("abracababra"));
+		roundtrip(include_bin!("../lib/compress/data/test.txt"));
+	}
+
+	#[bench]
+	fn encode_speed(bh: &mut test::BenchHarness) {
+		let input = include_bin!("../lib/compress/data/test.txt");
+		let mut buffer = vec::from_elem(input.len(), 0u8);
+		let mut encoder = super::Encoder::new(input.len());
+		bh.iter(|| {
+			let (_, err) = encoder.encode(input, io::BufWriter::new(buffer));
+			err.unwrap();
+		});
+		bh.bytes = input.len() as u64;
+	}
+
+	#[bench]
+	fn decode_speed(bh: &mut test::BenchHarness) {
+		let input = include_bin!("../lib/compress/data/test.txt");
+		let mut encoder = super::Encoder::new(input.len());
+		encoder.model.reset();
+		let (writer, err) = encoder.encode(input, io::MemWriter::new());
+		err.unwrap();
+		let buffer1 = writer.unwrap();
+		let mut buffer2 = vec::from_elem(input.len(), 0u8);
+		let mut decoder = super::Decoder::new(input.len());
+		bh.iter(|| {
+			decoder.model.reset();
+			let (_, _, err) = decoder.decode(io::BufReader::new(buffer1), io::BufWriter::new(buffer2));
+			err.unwrap();
+		});
+		bh.bytes = input.len() as u64;
 	}
 }
