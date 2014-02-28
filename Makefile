@@ -18,21 +18,21 @@ test-lib: ${LIB_PATH}
 	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
 
 
-bin/dark: Makefile src/*.rs ${LIB_PATH}
+bin/dark: Makefile src/*.rs src/model/*.rs ${LIB_PATH}
 	mkdir -p bin
 	rustc -O -L ${LIB_DIR} -o bin/dark src/main.rs
 
-bin/test: Makefile src/*.rs ${LIB_PATH}
+bin/test: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/test src/main.rs
 	
 
-bin/bench: Makefile src/*.rs ${LIB_PATH}
+bin/bench: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
 
-bin/profile: Makefile src/*.rs ${LIB_PATH}
+bin/profile: bin/dark
 	rustc -O -g -L ${LIB_DIR} -o bin/profile src/main.rs
 
-bin/profile-saca: Makefile src/*.rs ${LIB_PATH}
+bin/profile-saca: bin/dark
 	rustc -O -g -L ${LIB_DIR} --test -o bin/profile-saca src/main.rs
 
 

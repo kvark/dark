@@ -7,26 +7,25 @@ Block encoding/decoding routines
 use std::{io, vec};
 use compress::bwt;
 use compress::entropy::ari;
-use model;
-use model::DistanceModel;
+use model::{Distance, DistanceModel};
 use saca;
 
 
 /// A basic block encoder
-pub struct Encoder {
+pub struct Encoder<M> {
 	priv sac	: saca::Constructor,
 	priv mtf	: bwt::mtf::MTF,
-	/// Encoding model
-	model		: model::dc::Model,
+	/// Distance encoding model
+	model		: M,
 }
 
-impl Encoder {
+impl<M: DistanceModel> Encoder<M> {
 	/// Create a new Encoder instance
-	pub fn new(n: uint) -> Encoder {
+	pub fn new(n: uint) -> Encoder<M> {
 		Encoder {
 			sac		: saca::Constructor::new(n),
 			mtf		: bwt::mtf::MTF::new(),
-			model	: model::new(),
+			model	: DistanceModel::new_default(),
 		}
 	}
 
@@ -48,7 +47,7 @@ impl Encoder {
 		let mut helper = if E > 111 {
 			info!("Alphabet is sparse");
 			writer.write_u8(0).unwrap();
-			let mut rd = [N as model::Distance, ..0x100];
+			let mut rd = [N as Distance, ..0x100];
 			for &(sym,d) in dc_init.iter() {
 				rd[sym] = d;
 			}
@@ -78,30 +77,30 @@ impl Encoder {
 		}
 		// done
 		info!("Origin: {}", origin);
-		self.model.encode(origin as model::Distance, 0, &mut helper);
-		info!("Encoded {} distances", self.model.num_processed);
+		self.model.encode(origin as Distance, 0, &mut helper);
+		//info!("Encoded {} distances", model.num_processed);
 		helper.finish()
 	}
 }
 
 
 /// A basic block decoder
-pub struct Decoder {
+pub struct Decoder<M> {
 	priv input		: ~[u8],
 	priv suffixes	: ~[saca::Suffix],
 	priv mtf		: bwt::mtf::MTF,
-	/// Encoding model
-	model			: model::dc::Model,
+	/// Distance decoding model
+	model			: M,
 }
 
-impl Decoder {
+impl<M: DistanceModel> Decoder<M> {
 	/// Create a new decoder instance
-	pub fn new(n: uint) -> Decoder {
+	pub fn new(n: uint) -> Decoder<M> {
 		Decoder {
 			input	: vec::from_elem(n, 0u8),
 			suffixes: vec::from_elem(n, 0 as saca::Suffix),
 			mtf		: bwt::mtf::MTF::new(),
-			model	: model::new(),
+			model	: DistanceModel::new_default(),
 		}
 	}
 
@@ -119,9 +118,9 @@ impl Decoder {
 			Some(alphabet.slice_to(E))
 		};
 		// decode distances
+		let model = &mut self.model;
 		let mut dh = ari::Decoder::new(reader);
 		dh.start().unwrap();
-		let model = &mut self.model;
 		bwt::dc::decode(alpha_opt, self.input, &mut self.mtf, |sym| {
 			let d = model.decode(sym, &mut dh);
 			info!("Distance {} for {}", d, sym);

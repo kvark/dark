@@ -20,22 +20,27 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let num_logs = 33;
 		Model {
-			freq_log		: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
+			freq_log	: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
 				1<<(10 - cmp::min(10,i))
 			}),
-			freq_rest		: [ari::BinaryModel::new_flat(threshold), ..4],
-			threshold		: threshold,
+			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..4],
+			threshold	: threshold,
 			num_processed	: 0,
 		}
 	}
 }
 
 impl super::DistanceModel for Model {
+	fn new_default() -> Model {
+		Model::new(ari::range_default_threshold >> 2)
+	}
+
 	fn reset(&mut self) {
 		self.freq_log.reset_flat();
 		for bm in self.freq_rest.mut_iter() {
 			*bm = ari::BinaryModel::new_flat(self.threshold);
 		}
+		self.num_processed = 0;
 	}
 
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _sym: super::Symbol, eh: &mut ari::Encoder<W>) {
@@ -52,7 +57,7 @@ impl super::DistanceModel for Model {
 		// write mantissa
 		for i in range(1,log) {
 			let bit = (dist>>(log-i-1)) as uint & 1;
-			if i >= self.freq_rest.len() {
+			if i > self.freq_rest.len() {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
 			}else {
@@ -73,7 +78,7 @@ impl super::DistanceModel for Model {
 		}
 		let mut dist = 1 as super::Distance;
 		for i in range(1,log) {
-			let bit = if i >= self.freq_rest.len() {
+			let bit = if i > self.freq_rest.len() {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
 			}else {
 				let table = &mut self.freq_rest[i-1];

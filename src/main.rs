@@ -6,10 +6,9 @@
 
 extern crate native;
 extern crate compress;
-#[cfg(test)]
-extern crate test;
 
 use std::{io, os};
+use model::DistanceModel;
 
 /// Block encoding/decoding logic
 pub mod block;
@@ -45,7 +44,8 @@ pub fn main() {
 		let N = in_file.read_le_u32().unwrap() as uint;
 		info!("Decoding N: {}", N);
 		// decode the block
-		let (_, _, err) = block::Decoder::new(N).decode(in_file, out_file);
+		//let (_, _, err) = block::Decoder::<model::ybs::Model>::new(N).decode(in_file, out_file);
+		let (_, _, err) = block::Decoder::<model::dc::Model>::new(N).decode(in_file, out_file);
 		err.unwrap();
 	}else {
 		let input = match io::File::open(&input_path).read_to_end() {
@@ -62,7 +62,8 @@ pub fn main() {
 		info!("Encoding N: {}", N);
 		out_file.write_le_u32(N as u32).unwrap();
 		// encode the block
-		let (_, err) = block::Encoder::new(N).encode(input, out_file);
+		//let (_, err) = block::Encoder::<model::ybs::Model>::new(N).encode(input, out_file);
+		let (_, err) = block::Encoder::<model::dc::Model>::new(N).encode(input, out_file);
 		err.unwrap();
 	}
 }
