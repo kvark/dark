@@ -6,6 +6,8 @@
 
 extern crate native;
 extern crate compress;
+#[cfg(test)]
+extern crate test;
 
 use std::{io, os};
 use model::DistanceModel;

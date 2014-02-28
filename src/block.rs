@@ -142,14 +142,14 @@ impl<M: DistanceModel> Decoder<M> {
 pub mod test {
 	use std::{io, vec};
 	use test;
-	use super::model::DistanceModel;
+	use super::super::model::{DistanceModel, dc, ybs};
 
-	fn roundtrip(bytes: &[u8]) {
-		let (writer, err) = super::Encoder::new(bytes.len()).encode(bytes, io::MemWriter::new());
+	fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
+		let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, io::MemWriter::new());
 		err.unwrap();
 		let buffer = writer.unwrap();
 		let reader = io::BufReader::new(buffer);
-		let (_, output, err) = super::Decoder::new(bytes.len()).decode(reader, io::MemWriter::new());
+		let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, io::MemWriter::new());
 		err.unwrap();
 		let decoded = output.unwrap();
 		assert_eq!(bytes.as_slice(), decoded.as_slice());
@@ -157,15 +157,16 @@ pub mod test {
 	
 	#[test]
 	fn roundtrips() {
-		roundtrip(bytes!("abracababra"));
-		roundtrip(include_bin!("../lib/compress/data/test.txt"));
+		roundtrip::<dc::Model>(bytes!("abracababra"));
+		roundtrip::<dc::Model>	(include_bin!("../lib/compress/data/test.txt"));
+		roundtrip::<ybs::Model>	(include_bin!("../lib/compress/data/test.txt"));
 	}
 
 	#[bench]
 	fn encode_speed(bh: &mut test::BenchHarness) {
 		let input = include_bin!("../lib/compress/data/test.txt");
 		let mut buffer = vec::from_elem(input.len(), 0u8);
-		let mut encoder = super::Encoder::new(input.len());
+		let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
 		bh.iter(|| {
 			let (_, err) = encoder.encode(input, io::BufWriter::new(buffer));
 			err.unwrap();
@@ -176,13 +177,13 @@ pub mod test {
 	#[bench]
 	fn decode_speed(bh: &mut test::BenchHarness) {
 		let input = include_bin!("../lib/compress/data/test.txt");
-		let mut encoder = super::Encoder::new(input.len());
+		let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
 		encoder.model.reset();
 		let (writer, err) = encoder.encode(input, io::MemWriter::new());
 		err.unwrap();
 		let buffer1 = writer.unwrap();
 		let mut buffer2 = vec::from_elem(input.len(), 0u8);
-		let mut decoder = super::Decoder::new(input.len());
+		let mut decoder = super::Decoder::<ybs::Model>::new(input.len());
 		bh.iter(|| {
 			decoder.model.reset();
 			let (_, _, err) = decoder.decode(io::BufReader::new(buffer1), io::BufWriter::new(buffer2));
