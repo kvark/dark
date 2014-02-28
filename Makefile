@@ -50,11 +50,13 @@ profile: callgrind.dark
 
 callgrind.saca: bin/profile-saca
 	valgrind --tool=callgrind bin/profile-saca --bench
-	mv callgrind.out.* callgrind.saca
+	mv callgrind.out.* callgrind.saca.out
 
-callgrind.dark: bin/profile bin/dark
-	valgrind --tool=callgrind bin/profile bin/dark
-	mv callgrind.out.* callgrind.dark
+callgrind.dark: bin/profile
+	valgrind --tool=callgrind bin/profile lib/compress/data/test.large
+	mv callgrind.out.* callgrind.dark.out
+	ls -l test.large.dark
+	rm test.large.dark
 
 
 pack-small: bin/dark

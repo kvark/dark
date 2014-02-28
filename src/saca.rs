@@ -342,6 +342,11 @@ impl Constructor {
 		}
 	}
 
+	/// Return maximum block size
+	pub fn capacity(&self) -> uint {
+		self.n
+	}
+
 	/// Compute the suffix array for a given input
 	pub fn compute<'a>(&'a mut self, input: &[Symbol]) -> &'a [Suffix] {
 		assert_eq!(input.len(), self.n);
