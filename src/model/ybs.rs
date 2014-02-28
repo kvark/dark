@@ -1,10 +1,8 @@
-/*!
-	Experimental BWT-DC compression model
-*/
-
 use std::{cmp, io};
 use compress::entropy::ari;
 
+
+pub type Distance = u32;
 
 /// Coding model for BWT-DC output
 pub struct Model {
@@ -28,18 +26,18 @@ impl Model {
 			num_processed	: 0,
 		}
 	}
-}
 
-impl super::DistanceModel for Model {
-	fn reset(&mut self) {
+	/// Reset the model to a simple redundant state
+	pub fn reset(&mut self) {
 		self.freq_log.reset_flat();
 		for bm in self.freq_rest.mut_iter() {
 			*bm = ari::BinaryModel::new_flat(self.threshold);
 		}
 	}
 
-	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _sym: super::Symbol, eh: &mut ari::Encoder<W>) {
-		fn int_log(d: super::Distance) -> uint {
+	/// Encode the distance of a symbol, using the Arithmetic coder
+	pub fn encode<W: io::Writer>(&mut self, dist: Distance, _sym: u8, eh: &mut ari::Encoder<W>) {
+		fn int_log(d: Distance) -> uint {
 			let mut log = 0;
 			while d>>log !=0 {log += 1;}
 			log
@@ -64,14 +62,14 @@ impl super::DistanceModel for Model {
 	}
 
 	/// Decode the distance of a symbol, using the Arithmetic coder
-	fn decode<R: io::Reader>(&mut self, _sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
+	pub fn decode<R: io::Reader>(&mut self, _sym: u8, dh: &mut ari::Decoder<R>) -> Distance {
 		self.num_processed += 1;
 		let log = dh.decode(&self.freq_log).unwrap();
 		self.freq_log.update(log, 10, 1);
 		if log == 0 {
 			return 0
 		}
-		let mut dist = 1 as super::Distance;
+		let mut dist = 1 as Distance;
 		for i in range(1,log) {
 			let bit = if i >= self.freq_rest.len() {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
@@ -81,8 +79,13 @@ impl super::DistanceModel for Model {
 				table.update(bit, 8, 1);
 				bit
 			};
-			dist = (dist<<1) + (bit as super::Distance);
+			dist = (dist<<1) + (bit as Distance);
 		}
 		dist
 	}
+}
+
+/// Create a new default model instance
+pub fn new() -> Model {
+	Model::new(ari::range_default_threshold >> 2)
 }

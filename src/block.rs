@@ -8,6 +8,7 @@ use std::{io, vec};
 use compress::bwt;
 use compress::entropy::ari;
 use model;
+use model::DistanceModel;
 use saca;
 
 
@@ -25,7 +26,7 @@ impl Encoder {
 		Encoder {
 			sac		: saca::Constructor::new(n),
 			mtf		: bwt::mtf::MTF::new(),
-			model	: model::dc::new(),
+			model	: model::new(),
 		}
 	}
 
@@ -47,7 +48,7 @@ impl Encoder {
 		let mut helper = if E > 111 {
 			info!("Alphabet is sparse");
 			writer.write_u8(0).unwrap();
-			let mut rd = [N as model::dc::Distance, ..0x100];
+			let mut rd = [N as model::Distance, ..0x100];
 			for &(sym,d) in dc_init.iter() {
 				rd[sym] = d;
 			}
@@ -77,7 +78,7 @@ impl Encoder {
 		}
 		// done
 		info!("Origin: {}", origin);
-		self.model.encode(origin as model::dc::Distance, 0, &mut helper);
+		self.model.encode(origin as model::Distance, 0, &mut helper);
 		info!("Encoded {} distances", self.model.num_processed);
 		helper.finish()
 	}
@@ -100,7 +101,7 @@ impl Decoder {
 			input	: vec::from_elem(n, 0u8),
 			suffixes: vec::from_elem(n, 0 as saca::Suffix),
 			mtf		: bwt::mtf::MTF::new(),
-			model	: model::dc::new(),
+			model	: model::new(),
 		}
 	}
 
@@ -142,6 +143,7 @@ impl Decoder {
 pub mod test {
 	use std::{io, vec};
 	use test;
+	use super::model::DistanceModel;
 
 	fn roundtrip(bytes: &[u8]) {
 		let (writer, err) = super::Encoder::new(bytes.len()).encode(bytes, io::MemWriter::new());

@@ -13,13 +13,10 @@ use std::{io, os};
 
 /// Block encoding/decoding logic
 pub mod block;
+/// Compression models
+pub mod model;
 /// Suffix Array Construction Algorithm (SACA)
 pub mod saca;
-/// Compression models
-pub mod model {
-	/// Distance Coding model
-	pub mod dc;
-}
 
 
 /// Program entry point
