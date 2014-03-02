@@ -1,5 +1,17 @@
 /*!
-	YBS-like compression model
+
+YBS-like compression model
+
+Work in progress, based on the notes from Vadim.
+
+# Links
+
+http://www.compression.ru/ybs/
+
+# Credit
+
+Vadim Yookin for sharing details of YBS implementation.
+
 */
 
 use std::{cmp, io, num, vec};

@@ -1,5 +1,7 @@
 /*!
-	Experimental BWT-DC compression model
+
+Experimental BWT-DC compression model
+
 */
 
 use std::{cmp, io};

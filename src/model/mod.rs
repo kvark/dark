@@ -1,11 +1,13 @@
 /*!
-	Various BWT-DC compression models
+
+Various BWT-DC compression models
+
 */
 
 use compress::entropy::ari;
 
 /// Original BWT-DC compression model
-pub mod dc;
+pub mod exp;
 /// A attempt to reproduce YBS model
 pub mod ybs;
 
@@ -63,9 +65,9 @@ pub mod test {
 	}
 	
 	#[test]
-	fn roundtrips_dc() {
-		roundtrip::<super::dc::Model>([(1,1),(2,2),(3,3),(4,4)]);
-		roundtrip::<super::dc::Model>(gen_data(1000,200));
+	fn roundtrips_exp() {
+		roundtrip::<super::exp::Model>([(1,1),(2,2),(3,3),(4,4)]);
+		roundtrip::<super::exp::Model>(gen_data(1000,200));
 	}
 
 	#[test]

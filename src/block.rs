@@ -142,7 +142,7 @@ impl<M: DistanceModel> Decoder<M> {
 pub mod test {
 	use std::{io, vec};
 	use test;
-	use super::super::model::{DistanceModel, dc, ybs};
+	use super::super::model::{DistanceModel, exp, ybs};
 
 	fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
 		let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, io::MemWriter::new());
@@ -157,8 +157,8 @@ pub mod test {
 	
 	#[test]
 	fn roundtrips() {
-		roundtrip::<dc::Model>(bytes!("abracababra"));
-		roundtrip::<dc::Model>	(include_bin!("../lib/compress/data/test.txt"));
+		roundtrip::<exp::Model>(bytes!("abracababra"));
+		roundtrip::<exp::Model>	(include_bin!("../lib/compress/data/test.txt"));
 		roundtrip::<ybs::Model>	(include_bin!("../lib/compress/data/test.txt"));
 	}
 
