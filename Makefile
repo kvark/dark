@@ -56,23 +56,9 @@ callgrind.dark: bin/profile
 	rm test.large.dark
 
 
-pack-small: bin/dark
-	bin/dark ${LIB_DIR}/data/test.txt
-	bin/dark test.txt.dark
-	cmp ${LIB_DIR}/data/test.txt test.txt.orig
-	ls -l test.txt.*
-	rm test.txt.*
-
-pack-large: bin/dark
-	bin/dark ${LIB_DIR}/data/test.large
-	bin/dark test.large.dark
-	cmp ${LIB_DIR}/data/test.large test.large.orig
-	ls -l test.large.*
-	rm test.large.*
-
 pack: bin/dark
-	echo -n "abracadabra" >in.dat
-	bin/dark in.dat
-	bin/dark in.dat.dark
-	cat in.dat.orig && echo ""
-	rm in.dat*
+	bin/dark data/book1
+	ls -l book1.dark
+	bin/dark book1.dark
+	cmp data/book1 book1.orig
+	rm book1.*
