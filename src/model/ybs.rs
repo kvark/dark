@@ -100,7 +100,7 @@ impl super::DistanceModel for Model {
 		// write mantissa
 		for i in range(1,log) {
 			let bit = (dist>>(log-i-1)) as uint & 1;
-			if i > self.freq_rest.len() {
+			if i >= self.freq_rest.len() {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
 			}else {
@@ -127,7 +127,7 @@ impl super::DistanceModel for Model {
 		// read mantissa
 		let mut dist = 1 as super::Distance;
 		for i in range(1,log) {
-			let bit = if i > self.freq_rest.len() {
+			let bit = if i >= self.freq_rest.len() {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
 			}else {
 				let table = &mut self.freq_rest[i-1];

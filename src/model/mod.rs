@@ -6,6 +6,8 @@ Various BWT-DC compression models
 
 use compress::entropy::ari;
 
+/// Old Dark-0.51 model
+pub mod dark;
 /// Original BWT-DC compression model
 pub mod exp;
 /// A attempt to reproduce YBS model
@@ -64,6 +66,12 @@ pub mod test {
 		})
 	}
 	
+	#[test]
+	fn roundtrips_dark() {
+		roundtrip::<super::dark::Model>([(1,1),(2,2),(3,3),(4,4)]);
+		roundtrip::<super::dark::Model>(gen_data(1000,200));
+	}
+
 	#[test]
 	fn roundtrips_exp() {
 		roundtrip::<super::exp::Model>([(1,1),(2,2),(3,3),(4,4)]);
