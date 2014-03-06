@@ -41,7 +41,6 @@ impl SymbolContext {
 pub struct Model {
 	priv freq_log	: ~[ari::FrequencyTable],
 	priv freq_rest	: [ari::BinaryModel, ..3],
-	priv threshold	: ari::Border,
 	/// specific context tracking
 	priv contexts	: [SymbolContext, ..0x100],
 	/// number of distances processed
@@ -55,7 +54,6 @@ impl Model {
 		Model {
 			freq_log	: vec::from_fn(13, |_| ari::FrequencyTable::new_flat(num_logs, threshold)),
 			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..3],
-			threshold	: threshold,
 			contexts	: [SymbolContext::new(), ..0x100],
 			num_processed	: 0,
 		}
@@ -72,7 +70,7 @@ impl super::DistanceModel for Model {
 			table.reset_flat();
 		}
 		for bm in self.freq_rest.mut_iter() {
-			*bm = ari::BinaryModel::new_flat(self.threshold);
+			bm.reset_flat();
 		}
 		for con in self.contexts.mut_iter() {
 			con.avg_log = 0;

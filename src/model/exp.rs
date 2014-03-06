@@ -12,7 +12,6 @@ use compress::entropy::ari;
 pub struct Model {
 	priv freq_log	: ari::FrequencyTable,
 	priv freq_rest	: [ari::BinaryModel, ..4],
-	priv threshold	: ari::Border,
 	/// number of distances processed
 	num_processed	: uint,
 }
@@ -26,7 +25,6 @@ impl Model {
 				1<<(10 - cmp::min(10,i))
 			}),
 			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..4],
-			threshold	: threshold,
 			num_processed	: 0,
 		}
 	}
@@ -40,7 +38,7 @@ impl super::DistanceModel for Model {
 	fn reset(&mut self) {
 		self.freq_log.reset_flat();
 		for bm in self.freq_rest.mut_iter() {
-			*bm = ari::BinaryModel::new_flat(self.threshold);
+			bm.reset_flat();
 		}
 		self.num_processed = 0;
 	}
