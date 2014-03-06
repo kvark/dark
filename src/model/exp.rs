@@ -63,9 +63,9 @@ impl super::DistanceModel for Model {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
 			}else {
-				let table = &mut self.freq_rest[i-1];
-				eh.encode(bit, table).unwrap();
-				table.update(bit, 8, 1);
+				let bc = &mut self.freq_rest[i-1];
+				eh.encode(bit, bc).unwrap();
+				bc.update(bit, 5);
 			};
 		}
 	}
@@ -83,9 +83,9 @@ impl super::DistanceModel for Model {
 			let bit = if i >= self.freq_rest.len() {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
 			}else {
-				let table = &mut self.freq_rest[i-1];
-				let bit = dh.decode(table).unwrap();
-				table.update(bit, 8, 1);
+				let bc = &mut self.freq_rest[i-1];
+				let bit = dh.decode(bc).unwrap();
+				bc.update(bit, 5);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);

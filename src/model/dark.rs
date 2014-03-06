@@ -135,11 +135,11 @@ impl super::DistanceModel for Model {
 			for _ in range(MAX_LOG_CONTEXT,log) {
 				let bc = &mut context.freq_extra;
 				eh.encode(0, bc).unwrap();
-				bc.update(0, 3, 5);
+				bc.update(0, 3);
 			}
 			let bc = &mut context.freq_extra;
 			eh.encode(1, bc).unwrap();
-			bc.update(1, 3, 5);
+			bc.update(1, 3);
 		}else {
 			let sym_freq = &mut context.freq_log;
 			eh.encode(log, sym_freq).unwrap();
@@ -152,9 +152,9 @@ impl super::DistanceModel for Model {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
 			}else {
-				let table = &mut self.freq_rest[i-1];
-				eh.encode(bit, table).unwrap();
-				table.update(bit, 2, 5);
+				let bc = &mut self.freq_rest[i-1];
+				eh.encode(bit, bc).unwrap();
+				bc.update(bit, 8);
 			};
 		}
 		// update the model
@@ -176,9 +176,9 @@ impl super::DistanceModel for Model {
 			let bc = &mut context.freq_extra;
 			while dh.decode(bc).unwrap() == 0 {
 				count += 1;
-				bc.update(0, 3, 5);
+				bc.update(0, 3);
 			}
-			bc.update(1, 3, 5);
+			bc.update(1, 3);
 			log_pre + count
 		}else {
 			log_pre
@@ -189,9 +189,9 @@ impl super::DistanceModel for Model {
 			let bit = if i > MAX_BIT_CONTEXT {
 				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
 			}else {
-				let table = &mut self.freq_rest[i-1];
-				let bit = dh.decode(table).unwrap();
-				table.update(bit, 2, 5);
+				let bc = &mut self.freq_rest[i-1];
+				let bit = dh.decode(bc).unwrap();
+				bc.update(bit, 8);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);
