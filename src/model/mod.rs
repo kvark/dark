@@ -42,7 +42,7 @@ pub mod test {
 		let mut eh = ari::Encoder::new(io::MemWriter::new());
 		m.reset();
 		for &(sym,dist) in input.iter() {
-			println!("Encode: {}", dist);
+			debug!("Encode: {}", dist);
 			m.encode(dist, sym, &mut eh);
 		}
 		let (mem, err) = eh.finish();
@@ -53,7 +53,7 @@ pub mod test {
 		dh.start().unwrap();
 		for &(sym,dist) in input.iter() {
 			let d2 = m.decode(sym, &mut dh);
-			println!("Actual: {}, Decoded: {}", dist, d2);
+			debug!("Actual: {}, Decoded: {}", dist, d2);
 			assert_eq!(d2, dist);
 		}
 	}
@@ -65,22 +65,24 @@ pub mod test {
 			(rng.gen::<Symbol>(), rng.gen_range(0, max_dist))
 		})
 	}
+
+	fn roundtrips<M: DistanceModel>() {
+		roundtrip::<M>([(1,1),(2,2),(3,3),(4,4)]);
+		roundtrip::<M>(gen_data(1000,200));
+	}
 	
 	#[test]
 	fn roundtrips_dark() {
-		roundtrip::<super::dark::Model>([(1,1),(2,2),(3,3),(4,4)]);
-		roundtrip::<super::dark::Model>(gen_data(1000,200));
+		roundtrips::<super::dark::Model>();
 	}
 
 	#[test]
 	fn roundtrips_exp() {
-		roundtrip::<super::exp::Model>([(1,1),(2,2),(3,3),(4,4)]);
-		roundtrip::<super::exp::Model>(gen_data(1000,200));
+		roundtrips::<super::exp::Model>();
 	}
 
 	#[test]
 	fn roundtrips_ybs() {
-		roundtrip::<super::ybs::Model>([(1,1),(2,2),(3,3),(4,4)]);
-		roundtrip::<super::ybs::Model>(gen_data(1000,200));
+		roundtrips::<super::ybs::Model>();
 	}
 }

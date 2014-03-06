@@ -37,8 +37,10 @@ ari::Model for Aggregate<'a,X,Y> {
 }
 
 
-static MAX_LOG_CONTEXT: uint = 8;
-static MAX_BIT_CONTEXT: uint = 3;
+static MAX_LOG_CODE		: uint = 8;
+static MAX_LOG_CONTEXT	: uint = 11;
+static NUM_LAST_LOGS	: uint = 3;
+static MAX_BIT_CONTEXT	: uint = 3;
 static ADAPT_POWERS: [int, ..9] = [6,5,4,3,2,1,4,6,4];
 static DIST_OFFSET: super::Distance = 1;
 
@@ -53,7 +55,7 @@ impl SymbolContext {
 	fn new(threshold: ari::Border) -> SymbolContext {
 		SymbolContext{
 			avg_dist	: 1000,
-			freq_log	: ari::FrequencyTable::new_flat(MAX_LOG_CONTEXT+1, threshold),
+			freq_log	: ari::FrequencyTable::new_flat(MAX_LOG_CODE+1, threshold),
 			freq_extra	: ari::BinaryModel::new_flat(threshold),
 		}
 	}
@@ -74,11 +76,19 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv freq_log		: ~[ari::FrequencyTable],
+	priv freq_log		: ~[~[ari::FrequencyTable]],	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
 	priv freq_log_bits	: [ari::BinaryModel, ..2],
 	priv freq_mantissa	: [ari::BinaryModel, ..MAX_BIT_CONTEXT+1],
 	/// specific context tracking
-	priv contexts	: ~[SymbolContext],
+	priv contexts		: ~[SymbolContext],
+	priv last_log_token	: uint,
+	/// update parameters
+	priv update_log_global		: uint,
+	priv update_log_power		: uint,
+	priv update_log_add			: ari::Border,
+	priv update_bits_global		: uint,
+	priv update_bits_sym		: uint,
+	priv update_mantissa_global	: uint,
 	/// number of distances processed
 	num_processed	: uint,
 }
@@ -86,12 +96,21 @@ pub struct Model {
 impl Model {
 	/// Create a new Model instance
 	pub fn new(threshold: ari::Border) -> Model {
-		let num_logs = 33u;
 		Model {
-			freq_log		: vec::from_fn(13, |_| ari::FrequencyTable::new_flat(num_logs, threshold)),
+			freq_log		: vec::from_fn(MAX_LOG_CONTEXT+1, |_| {
+				vec::from_fn(NUM_LAST_LOGS, |_|
+					ari::FrequencyTable::new_flat(MAX_LOG_CODE+1, threshold))
+			}),
 			freq_log_bits	: [ari::BinaryModel::new_flat(threshold), ..2],
 			freq_mantissa	: [ari::BinaryModel::new_flat(threshold), ..MAX_BIT_CONTEXT+1],
 			contexts		: vec::from_fn(0x100, |_| SymbolContext::new(threshold)),
+			last_log_token	: 0,
+			update_log_global		: 12,
+			update_log_power		: 5,
+			update_log_add			: 5,
+			update_bits_global		: 2,
+			update_bits_sym			: 3,
+			update_mantissa_global	: 8,
 			num_processed	: 0,
 		}
 	}
@@ -109,8 +128,10 @@ impl super::DistanceModel for Model {
 	}
 
 	fn reset(&mut self) {
-		for table in self.freq_log.mut_iter() {
-			table.reset_flat();
+		for array in self.freq_log.mut_iter() {
+			for table in array.mut_iter() {
+				table.reset_flat();
+			}
 		}
 		for bm in self.freq_log_bits.mut_iter() {
 			bm.reset_flat();
@@ -121,6 +142,7 @@ impl super::DistanceModel for Model {
 		for con in self.contexts.mut_iter() {
 			con.reset();
 		}
+		self.last_log_token = 0;
 		self.num_processed = 0;
 	}
 
@@ -129,29 +151,33 @@ impl super::DistanceModel for Model {
 		let log = Model::int_log(dist);
 		let context = &mut self.contexts[sym];
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
-		let avg_log_capped = cmp::min(11, avg_log);
+		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		let log_diff = (log as int) - (avg_log_capped as int);	//check avg_log
 		// write exponent & update
-		let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==11 {1} else {0}];
-		if log >= MAX_LOG_CONTEXT {
+		{	// write exponent log base
 			let sym_freq = &mut context.freq_log;
-			eh.encode(MAX_LOG_CONTEXT, sym_freq).unwrap();
-			sym_freq.update(MAX_LOG_CONTEXT, 5, 5);
-			for _ in range(MAX_LOG_CONTEXT,log) {
+			let log_capped = cmp::min(log, MAX_LOG_CODE);
+			let global_freq = &mut self.freq_log[avg_log_capped][self.last_log_token];
+			debug!("Dark encoding log {} with context[{}][{}] of sym {}",
+				log_capped, avg_log_capped, self.last_log_token, sym);
+			eh.encode(log_capped, &ari::TableSumProxy::new(sym_freq, global_freq)).unwrap();
+			sym_freq.update(log_capped, self.update_log_power, self.update_log_add);
+			global_freq.update(log_capped, self.update_log_global, self.update_log_add);
+		}
+		if log >= MAX_LOG_CODE {
+			let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==MAX_LOG_CONTEXT {1} else {0}];
+			for _ in range(MAX_LOG_CODE, log) {
 				let bc = &mut context.freq_extra;
-				eh.encode(0, &ari::BinarySumProxy::new(bc,freq_log_bits)).unwrap();
-				bc.update(0, 3);
-				freq_log_bits.update(0, 2);
+				eh.encode(0, &ari::BinarySumProxy::new(bc, freq_log_bits)).unwrap();
+				bc.update(0, self.update_bits_sym);
+				freq_log_bits.update(0, self.update_bits_global);
 			}
 			let bc = &mut context.freq_extra;
-			eh.encode(1, &ari::BinarySumProxy::new(bc,freq_log_bits)).unwrap();
-			bc.update(1, 3);
-			freq_log_bits.update(1, 2);
-		}else {
-			let sym_freq = &mut context.freq_log;
-			eh.encode(log, sym_freq).unwrap();
-			sym_freq.update(log, 5, 5);
+			eh.encode(1, &ari::BinarySumProxy::new(bc, freq_log_bits)).unwrap();
+			bc.update(1, self.update_bits_sym);
+			freq_log_bits.update(1, self.update_bits_global);
 		}
+		self.last_log_token = if log<2 {0} else if log<8 {1} else {2};
 		// write mantissa
 		for i in range(1,log) {
 			let bit = (dist>>(log-i-1)) as uint & 1;
@@ -161,7 +187,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.freq_mantissa[i-1];
 				eh.encode(bit, bc).unwrap();
-				bc.update(bit, 8);
+				bc.update(bit, self.update_mantissa_global);
 			};
 		}
 		// update the model
@@ -172,29 +198,34 @@ impl super::DistanceModel for Model {
 	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let context = &mut self.contexts[sym];
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
-		let avg_log_capped = cmp::min(11, avg_log);
-		let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==11 {1} else {0}];
+		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		// read exponent
-		let log_pre = {
+		let log_pre = { // base part
 			let sym_freq = &mut context.freq_log;
-			let log = dh.decode(sym_freq).unwrap();
-			sym_freq.update(log, 5, 5);
+			let global_freq = &mut self.freq_log[avg_log_capped][self.last_log_token];
+			let log = dh.decode(&ari::TableSumProxy::new(sym_freq, global_freq)).unwrap();
+			debug!("Dark decoding log {} with context[{}][{}] of sym {}",
+				log, avg_log_capped, self.last_log_token, sym);
+			sym_freq.update(log, self.update_log_power, self.update_log_add);
+			global_freq.update(log, self.update_log_global, self.update_log_add);
 			log
 		};
-		let log = if log_pre >= MAX_LOG_CONTEXT {
+		let log = if log_pre >= MAX_LOG_CODE {
 			let mut count = 0;
+			let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==MAX_LOG_CONTEXT {1} else {0}];
 			let bc = &mut context.freq_extra;
-			while dh.decode(&ari::BinarySumProxy::new(bc,freq_log_bits)).unwrap() == 0 {
+			while dh.decode(&ari::BinarySumProxy::new(bc, freq_log_bits)).unwrap() == 0 {
 				count += 1;
-				bc.update(0, 3);
-				freq_log_bits.update(0, 2);
+				bc.update(0, self.update_bits_sym);
+				freq_log_bits.update(0, self.update_bits_global);
 			}
-			bc.update(1, 3);
-			freq_log_bits.update(1, 2);
+			bc.update(1, self.update_bits_sym);
+			freq_log_bits.update(1, self.update_bits_global);
 			log_pre + count
 		}else {
 			log_pre
 		};
+		self.last_log_token = if log<2 {0} else if log<8 {1} else {2};
 		// read mantissa
 		let mut dist = 1 as super::Distance;
 		for i in range(1,log) {
@@ -203,7 +234,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.freq_mantissa[i-1];
 				let bit = dh.decode(bc).unwrap();
-				bc.update(bit, 8);
+				bc.update(bit, self.update_mantissa_global);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);

@@ -46,7 +46,7 @@ pub fn main() {
 		let N = in_file.read_le_u32().unwrap() as uint;
 		info!("Decoding N: {}", N);
 		// decode the block
-		let (_, _, err) = block::Decoder::<model::exp::Model>::new(N).decode(in_file, out_file);
+		let (_, _, err) = block::Decoder::<model::dark::Model>::new(N).decode(in_file, out_file);
 		err.unwrap();
 	}else {
 		let input = match io::File::open(&input_path).read_to_end() {
@@ -63,7 +63,7 @@ pub fn main() {
 		info!("Encoding N: {}", N);
 		out_file.write_le_u32(N as u32).unwrap();
 		// encode the block
-		let (_, err) = block::Encoder::<model::exp::Model>::new(N).encode(input, out_file);
+		let (_, err) = block::Encoder::<model::dark::Model>::new(N).encode(input, out_file);
 		err.unwrap();
 	}
 }

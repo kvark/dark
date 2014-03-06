@@ -22,10 +22,12 @@ bin/dark: Makefile src/*.rs src/model/*.rs ${LIB_PATH}
 	mkdir -p bin
 	rustc -O -L ${LIB_DIR} -o bin/dark src/main.rs
 
+bin/debug: bin/dark
+	rustc -g -L ${LIB_DIR} -o bin/debug src/main.rs
+
 bin/test: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/test src/main.rs
 	
-
 bin/bench: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
 
