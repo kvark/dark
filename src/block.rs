@@ -31,8 +31,8 @@ impl<M: DistanceModel> Encoder<M> {
 
 	/// Encode a block into a given writer
 	pub fn encode<W: Writer>(&mut self, input: &[u8], mut writer: W) -> (W, io::IoResult<()>) {
-		let N = input.len();
-		assert!(N <= self.sac.capacity());
+		let block_size = input.len();
+		assert!(block_size <= self.sac.capacity());
 		// perform BWT and DC
 		let (output, origin) = {
 			let suf = self.sac.compute(input);
@@ -40,14 +40,14 @@ impl<M: DistanceModel> Encoder<M> {
 			let out = iter.to_owned_vec();
 			(out, iter.get_origin())
 		};
-		let suf = self.sac.reuse().mut_slice_to(N);
+		let suf = self.sac.reuse().mut_slice_to(block_size);
 		let dc_init = bwt::dc::encode(output, suf, &mut self.mtf);
 		// encode alphabet
-		let E = dc_init.len();
-		let mut helper = if E > 111 {
+		let alphabet_size = dc_init.len();
+		let mut helper = if alphabet_size > 111 {
 			info!("Alphabet is sparse");
 			writer.write_u8(0).unwrap();
-			let mut rd = [N as Distance, ..0x100];
+			let mut rd = [block_size as Distance, ..0x100];
 			for &(sym,d) in dc_init.iter() {
 				rd[sym] = d;
 			}
@@ -58,8 +58,8 @@ impl<M: DistanceModel> Encoder<M> {
 			}
 			eh
 		}else {
-			info!("Alphabet of size {}", E);
-			writer.write_u8(E as u8).unwrap();
+			info!("Alphabet of size {}", alphabet_size);
+			writer.write_u8(alphabet_size as u8).unwrap();
 			writer.write( dc_init.map(|&(s,_)| s) ).unwrap();
 			let mut eh = ari::Encoder::new(writer);
 			for &(sym,d) in dc_init.iter() {
@@ -70,7 +70,7 @@ impl<M: DistanceModel> Encoder<M> {
 		};
 		// encode distances
 		for (&d,&sym) in suf.iter().zip(output.iter()) {
-			if (d as uint) < N {
+			if (d as uint) < block_size {
 				info!("Distance {} for {}", d, sym);
 				self.model.encode(d, sym, &mut helper);
 			}
@@ -107,15 +107,15 @@ impl<M: DistanceModel> Decoder<M> {
 	/// Decode a block by reading from a given Reader into some Writer
 	pub fn decode<R: Reader, W: Writer>(&mut self, mut reader: R, mut writer: W) -> (R, W, io::IoResult<()>) {
 		// decode alphabit
-		let E = reader.read_u8().unwrap() as uint;
+		let alphabet_size = reader.read_u8().unwrap() as uint;
 		let mut alphabet = [0u8, ..0x100];
-		let alpha_opt = if E == 0 {
+		let alpha_opt = if alphabet_size == 0 {
 			info!("Alphabet is sparse");
 			None
 		}else {
-			reader.read( alphabet.mut_slice_to(E) ).unwrap();
-			info!("Alphabet of size {}: {:?}", E, alphabet.slice_to(E));
-			Some(alphabet.slice_to(E))
+			reader.read( alphabet.mut_slice_to(alphabet_size) ).unwrap();
+			info!("Alphabet of size {}: {:?}", alphabet_size, alphabet.slice_to(alphabet_size));
+			Some(alphabet.slice_to(alphabet_size))
 		};
 		// decode distances
 		let model = &mut self.model;

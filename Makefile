@@ -12,7 +12,7 @@ clean:
 	rm ${LIB_PATH} bin/*
 
 ${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
-	cd ${LIB_DIR} && rustc -O -g lib.rs
+	cd ${LIB_DIR} && rustc -O -g1 lib.rs
 
 test-lib: ${LIB_PATH}
 	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
@@ -23,7 +23,7 @@ bin/dark: Makefile src/*.rs src/model/*.rs ${LIB_PATH}
 	rustc -O -L ${LIB_DIR} -o bin/dark src/main.rs
 
 bin/debug: bin/dark
-	rustc -g -L ${LIB_DIR} -o bin/debug src/main.rs
+	rustc -g2 -L ${LIB_DIR} -o bin/debug src/main.rs
 
 bin/test: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/test src/main.rs
@@ -32,10 +32,10 @@ bin/bench: bin/dark
 	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
 
 bin/profile: bin/dark
-	rustc -O -g -L ${LIB_DIR} -o bin/profile src/main.rs
+	rustc -O -g1 -L ${LIB_DIR} -o bin/profile src/main.rs
 
 bin/profile-saca: bin/dark
-	rustc -O -g -L ${LIB_DIR} --test -o bin/profile-saca src/main.rs
+	rustc -O -g1 -L ${LIB_DIR} --test -o bin/profile-saca src/main.rs
 
 
 test: bin/test

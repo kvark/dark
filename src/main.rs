@@ -43,10 +43,10 @@ pub fn main() {
 		let out_path = Path::new(format!("{}{}", file_name.slice_to(ext_pos), ".orig"));
 		let out_file = io::BufferedWriter::new(io::File::create(&out_path));
 		// decode the block size
-		let N = in_file.read_le_u32().unwrap() as uint;
-		info!("Decoding N: {}", N);
+		let n = in_file.read_le_u32().unwrap() as uint;
+		info!("Decoding N: {}", n);
 		// decode the block
-		let (_, _, err) = block::Decoder::<model::dark::Model>::new(N).decode(in_file, out_file);
+		let (_, _, err) = block::Decoder::<model::dark::Model>::new(n).decode(in_file, out_file);
 		err.unwrap();
 	}else {
 		let input = match io::File::open(&input_path).read_to_end() {
@@ -56,14 +56,14 @@ pub fn main() {
 				return;
 			}
 		};
-		let N = input.len();
+		let n = input.len();
 		// write the block size
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));
 		let mut out_file = io::BufferedWriter::new(io::File::create(&out_path).unwrap());
-		info!("Encoding N: {}", N);
-		out_file.write_le_u32(N as u32).unwrap();
+		info!("Encoding N: {}", n);
+		out_file.write_le_u32(n as u32).unwrap();
 		// encode the block
-		let (_, err) = block::Encoder::<model::dark::Model>::new(N).encode(input, out_file);
+		let (_, err) = block::Encoder::<model::dark::Model>::new(n).encode(input, out_file);
 		err.unwrap();
 	}
 }
