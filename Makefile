@@ -1,41 +1,42 @@
 LIB_DIR		=lib/compress
-LIB_PATH	=${LIB_DIR}/libcompress-*.rlib
+LIB_PATH	=lib/libcompress-*.rlib
+TUNE		=--cfg=tune
 
 .PHONY: all deps clean test test-lib bench profile pack pack-small test-lib
 
 all: bin/dark
-
 
 deps: ${LIB_PATH}
 
 clean:
 	rm ${LIB_PATH} bin/*
 
+
 ${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
-	cd ${LIB_DIR} && rustc -O -g1 lib.rs
+	cd lib && rustc -O -g1 --cfg=tune compress/lib.rs
 
 test-lib: ${LIB_PATH}
-	cd ${LIB_DIR} && rustc --test lib.rs && ./compress
+	cd lib && rustc --test compress/lib.rs && ./compress
 
 
 bin/dark: Makefile src/*.rs src/model/*.rs ${LIB_PATH}
 	mkdir -p bin
-	rustc -O -L ${LIB_DIR} -o bin/dark src/main.rs
+	rustc -O -L lib -o bin/dark --cfg=tune src/main.rs
 
 bin/debug: bin/dark
-	rustc -g2 -L ${LIB_DIR} -o bin/debug src/main.rs
+	rustc -g2 -L lib -o bin/debug src/main.rs
 
 bin/test: bin/dark
-	rustc -O -L ${LIB_DIR} --test -o bin/test src/main.rs
+	rustc -O -L lib --test -o bin/test src/main.rs
 	
 bin/bench: bin/dark
-	rustc -O -L ${LIB_DIR} --test -o bin/bench src/main.rs
+	rustc -O -L lib --test -o bin/bench src/main.rs
 
 bin/profile: bin/dark
-	rustc -O -g1 -L ${LIB_DIR} -o bin/profile src/main.rs
+	rustc -O -g1 -L lib -o bin/profile src/main.rs
 
 bin/profile-saca: bin/dark
-	rustc -O -g1 -L ${LIB_DIR} --test -o bin/profile-saca src/main.rs
+	rustc -O -g1 -L lib --test -o bin/profile-saca src/main.rs
 
 
 test: bin/test
@@ -59,7 +60,7 @@ callgrind.dark: bin/profile
 
 
 pack: bin/dark
-	bin/dark data/book1
+	RUST_LOG=dark=3 bin/dark data/book1
 	ls -l book1.dark
 	bin/dark book1.dark
 	cmp data/book1 book1.orig

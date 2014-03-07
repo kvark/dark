@@ -19,6 +19,17 @@ pub struct Encoder<M> {
 	model		: M,
 }
 
+#[cfg(tune)]
+fn print_stats<W: Writer>(eh: &ari::Encoder<W>) {
+	let (b0, b1) = eh.get_bytes_lost();
+	info!("Bytes lost on threshold cut: {}, on divisions: {}", b0, b1);
+}
+
+#[cfg(not(tune))]
+fn print_stats<W: Writer>(_eh: &ari::Encoder<W>) {
+	//empty
+}
+
 impl<M: DistanceModel> Encoder<M> {
 	/// Create a new Encoder instance
 	pub fn new(n: uint) -> Encoder<M> {
@@ -53,7 +64,7 @@ impl<M: DistanceModel> Encoder<M> {
 			}
 			let mut eh = ari::Encoder::new(writer);
 			for (sym,&d) in rd.iter().enumerate() {
-				info!("Init distance {} for {}", d, sym);
+				debug!("Init distance {} for {}", d, sym);
 				self.model.encode(d, sym as u8, &mut eh);
 			}
 			eh
@@ -63,7 +74,7 @@ impl<M: DistanceModel> Encoder<M> {
 			writer.write( dc_init.map(|&(s,_)| s) ).unwrap();
 			let mut eh = ari::Encoder::new(writer);
 			for &(sym,d) in dc_init.iter() {
-				info!("Init distance {} for {}", d, sym);
+				debug!("Init distance {} for {}", d, sym);
 				self.model.encode(d, sym, &mut eh);
 			}
 			eh
@@ -71,14 +82,14 @@ impl<M: DistanceModel> Encoder<M> {
 		// encode distances
 		for (&d,&sym) in suf.iter().zip(output.iter()) {
 			if (d as uint) < block_size {
-				info!("Distance {} for {}", d, sym);
+				debug!("Distance {} for {}", d, sym);
 				self.model.encode(d, sym, &mut helper);
 			}
 		}
 		// done
 		info!("Origin: {}", origin);
 		self.model.encode(origin as Distance, 0, &mut helper);
-		//info!("Encoded {} distances", model.num_processed);
+		print_stats(&helper);
 		helper.finish()
 	}
 }
@@ -123,7 +134,7 @@ impl<M: DistanceModel> Decoder<M> {
 		dh.start().unwrap();
 		bwt::dc::decode(alpha_opt, self.input, &mut self.mtf, |sym| {
 			let d = model.decode(sym, &mut dh);
-			info!("Distance {} for {}", d, sym);
+			debug!("Distance {} for {}", d, sym);
 			Ok(d as uint)
 		}).unwrap();
 		let origin = model.decode(0, &mut dh) as uint;

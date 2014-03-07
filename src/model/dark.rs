@@ -89,8 +89,6 @@ pub struct Model {
 	priv update_bits_global		: uint,
 	priv update_bits_sym		: uint,
 	priv update_mantissa_global	: uint,
-	/// number of distances processed
-	num_processed	: uint,
 }
 
 impl Model {
@@ -111,7 +109,6 @@ impl Model {
 			update_bits_global		: 2,
 			update_bits_sym			: 3,
 			update_mantissa_global	: 8,
-			num_processed	: 0,
 		}
 	}
 
@@ -143,7 +140,6 @@ impl super::DistanceModel for Model {
 			con.reset();
 		}
 		self.last_log_token = 0;
-		self.num_processed = 0;
 	}
 
 	fn encode<W: io::Writer>(&mut self, mut dist: super::Distance, sym: super::Symbol, eh: &mut ari::Encoder<W>) {
@@ -153,8 +149,8 @@ impl super::DistanceModel for Model {
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
 		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		let log_diff = (log as int) - (avg_log_capped as int);	//check avg_log
-		// write exponent & update
-		{	// write exponent log base
+		// write exponent
+		{	// base part
 			let sym_freq = &mut context.freq_log;
 			let log_capped = cmp::min(log, MAX_LOG_CODE);
 			let global_freq = &mut self.freq_log[avg_log_capped][self.last_log_token];
@@ -164,7 +160,7 @@ impl super::DistanceModel for Model {
 			sym_freq.update(log_capped, self.update_log_power, self.update_log_add);
 			global_freq.update(log_capped, self.update_log_global, self.update_log_add);
 		}
-		if log >= MAX_LOG_CODE {
+		if log >= MAX_LOG_CODE {	// extension
 			let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==MAX_LOG_CONTEXT {1} else {0}];
 			for _ in range(MAX_LOG_CODE, log) {
 				let bc = &mut context.freq_extra;
@@ -192,7 +188,6 @@ impl super::DistanceModel for Model {
 		}
 		// update the model
 		context.update(dist, log_diff);
-		self.num_processed += 1;
 	}
 
 	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
@@ -210,7 +205,7 @@ impl super::DistanceModel for Model {
 			global_freq.update(log, self.update_log_global, self.update_log_add);
 			log
 		};
-		let log = if log_pre >= MAX_LOG_CODE {
+		let log = if log_pre >= MAX_LOG_CODE {	//extension
 			let mut count = 0;
 			let freq_log_bits = &mut self.freq_log_bits[if avg_log_capped==MAX_LOG_CONTEXT {1} else {0}];
 			let bc = &mut context.freq_extra;
@@ -240,9 +235,8 @@ impl super::DistanceModel for Model {
 			dist = (dist<<1) + (bit as super::Distance);
 		}
 		// update model
-		let log_diff = (log as int) - (avg_log as int);
+		let log_diff = (log as int) - (avg_log_capped as int);
 		context.update(dist, log_diff);
-		self.num_processed += 1;
 		// return
 		dist-DIST_OFFSET
 	}
