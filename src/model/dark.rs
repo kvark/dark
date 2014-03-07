@@ -86,7 +86,9 @@ impl SymbolContext {
 
 	fn update(&mut self, dist: super::Distance, mut log_diff: int) {
 		log_diff = cmp::max(-6, cmp::min(log_diff, 2));
-		let adapt = ADAPT_POWERS[6 + log_diff];
+		let adapt = if log_diff < -6 {7}
+		else if log_diff >= 3 {3}
+		else { ADAPT_POWERS[6+log_diff] };
 		self.avg_dist += (adapt*((dist as int) - self.avg_dist)) >> 3;
 	}
 }

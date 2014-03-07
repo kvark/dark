@@ -25,3 +25,10 @@ $(TARGET): src/*.h src/*.cpp $(MAKEFILE)
 distclean: clean
 clean:
 	$(RM) $(TARGET)
+
+pack: $(TARGET)
+	./$(TARGET) p ../../data/book1
+	ls -l book1.dark
+	./$(TARGET) u book1.dark
+	cmp book1 ../../data/book1
+	rm book1.dark book1
