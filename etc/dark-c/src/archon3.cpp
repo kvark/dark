@@ -92,7 +92,7 @@ void EncodeBlock(uchar *nbin, int nn)	{
 	bin = nbin; n = nn;
 	px.ran_encode(n,0);
 	if(!n) return; step();
-	Reverse(bin,bin+n);
+	if(st.reverse) Reverse(bin,bin+n);
 	baza=-1; // Radix sort
 	memset(r, 0, sizeof(trax2));
 	sfin = bin+n; //scans

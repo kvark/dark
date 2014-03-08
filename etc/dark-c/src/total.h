@@ -28,6 +28,8 @@ uint DecodeBlock(uchar *,FILE*);
 
 struct State	{
 	int block;
+	bool reverse;
+	bool entropy;
 };
 extern struct State st;
 

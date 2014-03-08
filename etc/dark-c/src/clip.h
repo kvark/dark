@@ -1,12 +1,21 @@
 void stopme(const char[],int);
 
+enum	{
+	PRED_REVERSE	= 0x01,
+	PRED_FRAGMENT	= 0x02,
+	PRED_SOLID		= 0x04,
+	PRED_ERROR		= 0x80,
+};
+
 /*
 *	'Predator' class was originally created for
 *	pre and post-processing techniques,
 *	it deals with single files and blocks
 */
 
-class Predator	{ 
+class Predator	{
+	bool FindByte(FILE*,uchar);
+	int Dezintegrate(int);
 	uchar *s_bin;
 public:
 	int here,len;

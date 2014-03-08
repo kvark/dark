@@ -5,6 +5,7 @@
 */
 #include "total.h"
 #include "clip.h"
+#include "ptax.h"
 #include <malloc.h>
 
 //number of zero terminating bytes
@@ -70,14 +71,25 @@ void ParseBlock(uchar *bin, int n)	{
 *	compress - split file to blocks
 */
 void Predator::Compress()	{
-	while(len+here > BS)	{
-		fread(cbin+here,1,BS-here,fs);
-		len -= (BS-here); 
-		ParseBlock(cbin,BS);
-		here = 0;
-	}//last piece
-	fread(cbin+here,1,len,fs);
-	here += len; fclose(fs);
+	if (st.entropy)	{
+		Ptax px; px.Beready();
+		int sym;
+		while ((sym = fgetc(fs)) >= 0) {
+			int dist = 0;
+			fread(&dist,4,1,fs);
+			px.ran_encode(dist,sym);
+		}
+	}else	{
+		while(len+here > BS)	{
+			fread(cbin+here,1,BS-here,fs);
+			len -= (BS-here); 
+			ParseBlock(cbin,BS);
+			here = 0;
+		}//last piece
+		fread(cbin+here,1,len,fs);
+		here += len;
+	}
+	fclose(fs);
 }
 
 void Predator::Finish()	{

@@ -46,6 +46,8 @@ void finit(char *str)	{
 Clip::Clip()	{
 	extern int block; //from Archon
 	file = NULL; st.block = block = 0;
+	st.reverse = true;
+	st.entropy = false;
 }
 
 void Clip::ReadOpts(const char *pc)	{
@@ -57,6 +59,8 @@ void Clip::ReadOpts(const char *pc)	{
 			else if(pc[0] == 'k') bs<<=10;
 			if(bs>=4 && bs <= (1<<30))
 				st.block = bs;
+		}else if(pc[0] == 'r')	{ st.reverse = false;
+		}else if(pc[0] == 'e')	{ st.entropy = true;
 		}else break;
 	}
 }

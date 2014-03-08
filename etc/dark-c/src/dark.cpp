@@ -1,7 +1,6 @@
 /*
-*	Dark-src-A (C)kvark, Nov 2006
+*	Dark-0.51 (C)kvark, Nov 2006
 *	the BWT-DC scheme universal compressor
-*	*** Open Linux+Win32 version ***
 */
 
 #include "total.h"
@@ -19,17 +18,21 @@ void stopme(const char msg[], int code)	{
 	_exit(code);
 }
 char call_format[] =
-	"dark <p[-switches]|u> <file>\n"
-	"\tp - Pack, u - Unpack\n"
-	"\t'bSize' set block size (like b5m or b2030k)\n"
-	"Defaults: -b4mi1\nMemory usage: 5*block\n";
+	"\ndark <p[-switches]|l|u> <file>"
+	"\n\tp - Pack, l - List, u - Unpack"
+	"\n\t'bSize' set block size (like b5m or b2030k)"
+	"\n\t'r' don't reverse sorting order"
+	"\n\t'e' consume distance list directly (test the entropy model)"
+	"\n\t'i<0|1|2>' silent/normal/extra info"
+	"\nDefaults: -b4mi1\nMemory usage: 5*block";
 
 State st;
 
 int main(int argc,char *argv[])	{
 	Clip clip; long t0=clock();
 	setbuf(stdout,NULL);
-	printf("OpenDark ver A\t(C)kvark, 2006");
+	printf("Dark v0.51\t(C)kvark, 2006");
+	printf("\nAdvanced command line BWT-DC compressor");
 	if(argc < 3) stopme(call_format,-1);
 	if(argv[1][0] == 'p')	{
 		if(argv[1][1] == '-')
