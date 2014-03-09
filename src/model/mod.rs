@@ -5,6 +5,7 @@ Various BWT-DC compression models
 */
 
 use compress::entropy::ari;
+use std::io; //TEMP
 
 /// Old Dark-0.51 model
 pub mod dark;
@@ -29,41 +30,29 @@ pub trait DistanceModel {
 	fn decode<R: Reader>(&mut self, Symbol, &mut ari::Decoder<R>) -> Distance;
 }
 
-/// Raw (Dist,Sym) pairs output
-pub struct Raw;
 
-impl ari::Model for Raw {
-	fn get_range(&self, value: ari::Value) -> (ari::Border, ari::Border) {
-		(value as ari::Border, value as ari::Border+1)
-	}
-	fn find_value(&self, offset: ari::Border) -> (ari::Value, ari::Border, ari::Border) {
-		(offset as ari::Value, offset, offset+1)
-	}
-	fn get_denominator(&self) -> ari::Border {
-		0x100
-	}
+/// Raw (Sym,Dist) pairs output
+pub struct RawOut {
+	priv out: io::File,
 }
 
-impl DistanceModel for Raw {
-	fn new_default() -> Raw {Raw}
-	fn reset(&mut self) {}
-	
-	fn encode<W: Writer>(&mut self, d: Distance, s: Symbol, enc: &mut ari::Encoder<W>) {
-		enc.encode(s as ari::Value, &Raw).unwrap();
-		enc.encode(((d>> 0)&0xFF) as ari::Value, &Raw).unwrap();
-		enc.encode(((d>> 8)&0xFF) as ari::Value, &Raw).unwrap();
-		enc.encode(((d>>16)&0xFF) as ari::Value, &Raw).unwrap();
-		enc.encode(((d>>24)&0xFF) as ari::Value, &Raw).unwrap();
+impl DistanceModel for RawOut {
+	fn new_default() -> RawOut {
+		RawOut {
+			out: io::File::create(&Path::new("out.raw")).unwrap(),
+		}
 	}
 
-	fn decode<R: Reader>(&mut self, s: Symbol, dec: &mut ari::Decoder<R>) -> Distance {
-		let sym = dec.decode(&Raw).unwrap() as Symbol;
-		assert_eq!(s, sym);
-		let d0 = dec.decode(&Raw).unwrap() as Distance;
-		let d1 = dec.decode(&Raw).unwrap() as Distance;
-		let d2 = dec.decode(&Raw).unwrap() as Distance;
-		let d3 = dec.decode(&Raw).unwrap() as Distance;
-		d0 + (d1<<8) + (d2<<16) + (d3<<24)
+	fn reset(&mut self) {}
+
+	fn encode<W: Writer>(&mut self, d: Distance, s: Symbol, _enc: &mut ari::Encoder<W>) {
+		debug!("Encoding raw distance {} for symbol {}", d, s);
+		self.out.write_u8(s).unwrap();
+		self.out.write_le_u32(d).unwrap();
+	}
+
+	fn decode<R: Reader>(&mut self, _s: Symbol, _dec: &mut ari::Decoder<R>) -> Distance {
+		0	//not supported
 	}
 }
 
@@ -107,11 +96,6 @@ pub mod test {
 	fn roundtrips<M: DistanceModel>() {
 		roundtrip::<M>([(1,1),(2,2),(3,3),(4,4)]);
 		roundtrip::<M>(gen_data(1000,200));
-	}
-
-	#[test]
-	fn roundtrips_raw() {
-		roundtrips::<super::Raw>();
 	}
 	
 	#[test]

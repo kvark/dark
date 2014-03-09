@@ -1,6 +1,7 @@
 LIB_DIR		=lib/compress
 LIB_PATH	=lib/libcompress-*.rlib
-TUNE		=--cfg=tune
+#TUNE		=--cfg=tune
+TUNE		=
 
 .PHONY: all deps clean test test-lib bench profile pack pack-small test-lib
 
@@ -13,7 +14,7 @@ clean:
 
 
 ${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
-	cd lib && rustc -O -g1 --cfg=tune compress/lib.rs
+	cd lib && rustc -O -g1 ${TUNE} compress/lib.rs
 
 test-lib: ${LIB_PATH}
 	cd lib && rustc --test compress/lib.rs && ./compress
@@ -21,7 +22,7 @@ test-lib: ${LIB_PATH}
 
 bin/dark: Makefile src/*.rs src/model/*.rs ${LIB_PATH}
 	mkdir -p bin
-	rustc -O -L lib -o bin/dark --cfg=tune src/main.rs
+	rustc -O -L lib -o bin/dark ${TUNE} src/main.rs
 
 bin/debug: bin/dark
 	rustc -g2 -L lib -o bin/debug src/main.rs
