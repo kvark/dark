@@ -19,14 +19,17 @@ void Ptax::setcon(SYMBOL *ps)	{
 	bc.t1 = ps->com;
 	bc.r0 = sbc[dc==11];
 	bc.r1 = ps->bic;
+	Info("\n\tSymbol context [%d][%d]", dc, fl);
 }
 void Ptax::postup(SYMBOL *ps, long num)	{
 	int raz = pov-dc;
-	if(raz < -6) raz = 7;
-	else if(raz >= 3) raz = 3;
-	else raz = ca[6+raz];
+	int power = 0;
+	if(raz < -6) power = 7;
+	else if(raz >= 3) power = 3;
+	else power = ca[6+raz];
 	//ps->df = (ps->df + num)/2;
-	ps->df += raz*(num - ps->df)>>3;
+	ps->df += power*(num - ps->df)>>3;
+	Info("\n\tUpdated avg dist to %d, using raz %d, dist %d and power %d", ps->df, raz, num, power);
 	//fprintf(fd,"%lu\t%d\n",ran,ps-sym);
 }
 

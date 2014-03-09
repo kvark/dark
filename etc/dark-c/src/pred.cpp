@@ -77,6 +77,7 @@ void Predator::Compress()	{
 		while ((sym = fgetc(fs)) >= 0) {
 			int dist = 0;
 			fread(&dist,4,1,fs);
+			Info("\nEncoding dist %d for sym %d", dist, sym);
 			px.ran_encode(dist,sym);
 		}
 	}else	{

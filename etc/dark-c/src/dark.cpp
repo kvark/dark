@@ -10,6 +10,19 @@
 #else //UNIX
 	#include <unistd.h>
 #endif
+#include <cstdarg>
+
+#ifdef VERBOSE
+void Info(const char *format, ...)	{
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+}
+#else
+void Info(const char *format, ...)	{}
+#endif
+
 
 void stopme(const char msg[], int code)	{
 	printf(msg);

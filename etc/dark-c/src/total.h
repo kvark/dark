@@ -20,6 +20,7 @@ namespace ark	{
 typedef int trax2[0x10001];
 extern trax2 r;
 
+void Info(const char *format, ...);
 int InitAll(int,uchar,FILE*,int*);
 void Reset();
 void EndAll();

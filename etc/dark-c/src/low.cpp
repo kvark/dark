@@ -23,6 +23,7 @@ namespace ark	{
 }
 
 void ark::parse(tfreq toff, tfreq tran)	{
+	Info("\n\tProcessing [%d-%d)", toff, toff+tran);
 	lo += rng*toff; rng *= tran;
 	//main [en|de]coding loop
 	do	{ hi = lo+rng;
@@ -32,6 +33,7 @@ void ark::parse(tfreq toff, tfreq tran)	{
 			if(hi-lim >= lim-lo) lo=lim;
 				else hi=lim-1;
 		}do	{//shift
+			Info("\n\tShifting on [%u-%u) to symbol %u", lo, hi, lo>>24);
 			act==MDEC ? nbde():nben();
 			lo<<=8; hi<<=8;
 		}while((lo^hi) < 1<<24);
@@ -53,7 +55,9 @@ int getlog(long ran)	{ int log;
 void EilerCoder::Update(tfreq *tab, uchar log, uchar sd)	{
 	tfreq add = (tab[0]>>sd)+5;
 	tab[log] += add;
+	Info("\n\tUpdating by adding %d to value %d", add, log);
 	if((tab[0] += add) >= FMAX)	{ int i;
+		Info("\n\tDownscaling frequencies");
 		for(tab[0]=0,i=1; i<=LIN; i++)
 			tab[0] += (++tab[i] >>= 1);
 	}
@@ -66,6 +70,7 @@ void EilerCoder::Parse(tfreq off, uchar log)	{
 void EilerCoder::PutLog(int log)	{
 	tfreq fcur; int i;
 	ark::rng /= getfreq(0);
+	Info("\n\tPutting a log %d with total %d of range %u", log, getfreq(0), ark::rng);
 	for(fcur=0,i=1; i<log; i++)
 		fcur += getfreq(i);
 	Parse(fcur, log);
@@ -106,19 +111,23 @@ void EilerCoder::EncodeEl(long num, int *pv)	{
 	if(log >= LIN)	{ tfreq fcur;
 		uchar fl; PutLog(LIN); 
 		for(u=r0,v=r1,fl=LIN; ;fl++,u++,v++)	{
+			Info("\n\tAppending bit %d", fl==log);
 			fcur = curfreq();
 			ark::rng >>= FMB;
 			if(fl == log) break;
 			ark::parse(fcur, FMAX-fcur);
+			Info("\n\tUpdating one with factors %d, %d", b0, b1);
 			u[0] -= u[0]>>b0;
 			v[0] -= v[0]>>b1;
 		}//stop bit
 		ark::parse(0, fcur);
+		Info("\n\tUpdating zero with factors %d, %d", b0, b1);
 		u[0] += (FMAX-u[0])>>b0;
 		v[0] += (FMAX-v[0])>>b1;
 	}else PutLog(log);
 	u = cbit[log];
 	for(int i=log-2; i>=0; i--,u++)	{
+		Info("\n\tCoding bit %d at position %d", (num>>i)&1, i);
 		bool upd = (i>=log-LOBIT);
 		ark::rng >>= FMB;
 		if(num & (1<<i))	{
@@ -128,6 +137,8 @@ void EilerCoder::EncodeEl(long num, int *pv)	{
 			ark::parse(0, u[0]);
 			if(upd) u[0] += (FMAX-u[0])>>RESTUP;
 		}
+		if (upd)
+			Info("\n\tUpdating bit %d with factor %d", (num>>i)&1, RESTUP);
 	}pv[0]=log;
 }
 //Decoding routine
