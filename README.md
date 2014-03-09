@@ -20,3 +20,7 @@ The compressor can successfully pack and unpack any data in linear time, includi
 * SACA optimization (BWT forward speed)
 * Range/Binary coder optimization (pack/unpack speed)
 * BWT-DC model improvements (compression ratio)
+
+### Base line
+
+The latest C-version of Dark-0.51 is replicated 1-to-1 here as the Dark compression model. It narrows down _book1_ to just 214505 bytes. Source of Dark-0.51 is also included in "etc/dark-c/", it was adopted to be multi-platform and include verbose logging.

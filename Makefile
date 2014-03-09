@@ -46,22 +46,24 @@ test: bin/test
 bench: bin/bench
 	bin/bench --bench
 
-profile-saca: callgrind.saca
-profile: callgrind.dark
+profile-saca: etc/callgrind/saca.out
+profile: etc/callgrind/dark.out
 
-callgrind.saca: bin/profile-saca
+etc/callgrind/saca.out: bin/profile-saca
 	valgrind --tool=callgrind bin/profile-saca --bench
-	mv callgrind.out.* callgrind.saca.out
+	mkdir -p etc/callgrind
+	mv callgrind.out.* etc/callgrind/saca.out
 
-callgrind.dark: bin/profile
+etc/callgrind/dark.out: bin/profile
 	valgrind --tool=callgrind bin/profile lib/compress/data/test.large
-	mv callgrind.out.* callgrind.dark.out
+	mkdir -p etc/callgrind
+	mv callgrind.out.* etc/callgrind/dark.out
 	ls -l test.large.dark
 	rm test.large.dark
 
 
 pack: bin/dark
-	RUST_LOG=dark=3 bin/dark data/book1
+	bin/dark data/book1
 	ls -l book1.dark
 	bin/dark book1.dark
 	cmp data/book1 book1.orig
