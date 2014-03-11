@@ -11,6 +11,8 @@ use std::io; //TEMP
 pub mod dark;
 /// Original BWT-DC compression model
 pub mod exp;
+/// A simplest model to compare with
+pub mod simple;
 /// A attempt to reproduce YBS model
 pub mod ybs;
 
@@ -106,6 +108,11 @@ pub mod test {
 	#[test]
 	fn roundtrips_exp() {
 		roundtrips::<super::exp::Model>();
+	}
+
+	#[test]
+	fn roundtrips_simple() {
+		roundtrips::<super::simple::Model>();
 	}
 
 	#[test]

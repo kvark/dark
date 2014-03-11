@@ -95,8 +95,8 @@ impl super::DistanceModel for Model {
 		// update model
 		freq_log.update(log_encoded, 10, 1);
 		context.update(log_encoded);	//use log?
-		if log >= log_encoded {
-			let add = log - log_encoded;
+		if log >= max_low_log {
+			let add = log - max_low_log;
 			eh.encode(add, &self.table_high).unwrap();
 			self.table_high.update(add, 10, 1);
 		}
@@ -130,7 +130,7 @@ impl super::DistanceModel for Model {
 		let log = if log_decoded == max_low_log {
 			let add = dh.decode(&self.table_high).unwrap();
 			self.table_high.update(add, 10, 1);
-			log_decoded + add
+			max_low_log + add
 		}else {log_decoded};
 		// read mantissa
 		let mut dist = 1 as super::Distance;
