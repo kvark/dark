@@ -39,23 +39,22 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv freq_log	: ~[ari::FrequencyTable],
-	priv freq_rest	: [ari::BinaryModel, ..3],
+	priv table_log	: ~[ari::FrequencyTable],
+	priv table_high	: ari::FrequencyTable,
+	priv bin_rest	: [ari::BinaryModel, ..3],
 	/// specific context tracking
 	priv contexts	: [SymbolContext, ..0x100],
-	/// number of distances processed
-	num_processed	: uint,
 }
 
 impl Model {
 	/// Create a new Model instance
 	pub fn new(threshold: ari::Border) -> Model {
-		let num_logs = 33u;
+		let low_logs = 12u;
 		Model {
-			freq_log	: vec::from_fn(13, |_| ari::FrequencyTable::new_flat(num_logs, threshold)),
-			freq_rest	: [ari::BinaryModel::new_flat(threshold), ..3],
+			table_log	: vec::from_fn(low_logs, |_| ari::FrequencyTable::new_flat(low_logs+1, threshold)),
+			table_high	: ari::FrequencyTable::new_flat(32-low_logs, threshold),
+			bin_rest	: [ari::BinaryModel::new_flat(threshold), ..3],
 			contexts	: [SymbolContext::new(), ..0x100],
-			num_processed	: 0,
 		}
 	}
 }
@@ -66,17 +65,17 @@ impl super::DistanceModel for Model {
 	}
 
 	fn reset(&mut self) {
-		for table in self.freq_log.mut_iter() {
+		for table in self.table_log.mut_iter() {
 			table.reset_flat();
 		}
-		for bm in self.freq_rest.mut_iter() {
+		self.table_high.reset_flat();
+		for bm in self.bin_rest.mut_iter() {
 			bm.reset_flat();
 		}
 		for con in self.contexts.mut_iter() {
 			con.avg_log = 0;
 			con.last_diff = 0;
 		}
-		self.num_processed = 0;
 	}
 
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, sym: super::Symbol, eh: &mut ari::Encoder<W>) {
@@ -85,24 +84,30 @@ impl super::DistanceModel for Model {
 			while d>>log !=0 {log += 1;}
 			log
 		}
+		let max_low_log = self.table_log.len()-1;
 		let log = int_log(dist);
 		let context = &mut self.contexts[sym];
-		let con_log = cmp::min(context.avg_log, self.freq_log.len()-1);
-		let freq_log = &mut self.freq_log[con_log];
+		let con_log = cmp::min(context.avg_log, max_low_log);
+		let freq_log = &mut self.table_log[con_log];
 		// write exponent
-		eh.encode(log, freq_log).unwrap();
+		let log_encoded = cmp::min(log, max_low_log);
+		eh.encode(log_encoded, freq_log).unwrap();
 		// update model
-		context.update(log);
-		freq_log.update(log, 10, 1);
-		self.num_processed += 1;
+		freq_log.update(log_encoded, 10, 1);
+		context.update(log_encoded);	//use log?
+		if log >= log_encoded {
+			let add = log - log_encoded;
+			eh.encode(add, &self.table_high).unwrap();
+			self.table_high.update(add, 10, 1);
+		}
 		// write mantissa
 		for i in range(1,log) {
 			let bit = (dist>>(log-i-1)) as uint & 1;
-			if i >= self.freq_rest.len() {
+			if i >= self.bin_rest.len() {
 				// just send bits past the model, equally distributed
-				eh.encode(bit, self.freq_rest.last().unwrap()).unwrap();
+				eh.encode(bit, self.bin_rest.last().unwrap()).unwrap();
 			}else {
-				let bc = &mut self.freq_rest[i-1];
+				let bc = &mut self.bin_rest[i-1];
 				eh.encode(bit, bc).unwrap();
 				bc.update(bit, 5);
 			};
@@ -110,25 +115,30 @@ impl super::DistanceModel for Model {
 	}
 
 	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
+		let max_low_log = self.table_log.len()-1;
 		let context = &mut self.contexts[sym];
-		let con_log = cmp::min(context.avg_log, self.freq_log.len()-1);
-		let freq_log = &mut self.freq_log[con_log];
+		let con_log = cmp::min(context.avg_log, max_low_log);
+		let freq_log = &mut self.table_log[con_log];
 		// read exponent
-		let log = dh.decode(freq_log).unwrap();
+		let log_decoded = dh.decode(freq_log).unwrap();
 		// update model
-		context.update(log);
-		freq_log.update(log, 10, 1);
-		self.num_processed += 1;
-		if log == 0 {
+		context.update(log_decoded);
+		freq_log.update(log_decoded, 10, 1);
+		if log_decoded == 0 {
 			return 0
 		}
+		let log = if log_decoded == max_low_log {
+			let add = dh.decode(&self.table_high).unwrap();
+			self.table_high.update(add, 10, 1);
+			log_decoded + add
+		}else {log_decoded};
 		// read mantissa
 		let mut dist = 1 as super::Distance;
 		for i in range(1,log) {
-			let bit = if i >= self.freq_rest.len() {
-				dh.decode( self.freq_rest.last().unwrap() ).unwrap()
+			let bit = if i >= self.bin_rest.len() {
+				dh.decode( self.bin_rest.last().unwrap() ).unwrap()
 			}else {
-				let bc = &mut self.freq_rest[i-1];
+				let bc = &mut self.bin_rest[i-1];
 				let bit = dh.decode(bc).unwrap();
 				bc.update(bit, 5);
 				bit
