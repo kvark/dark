@@ -7,6 +7,8 @@
 extern crate getopts;
 extern crate compress;
 #[cfg(test)]
+extern crate rand;
+#[cfg(test)]
 extern crate test;
 
 use std::{io, os};

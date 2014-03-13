@@ -14,7 +14,7 @@ clean:
 
 
 ${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
-	cd lib && rustc -O -g1 ${TUNE} compress/lib.rs
+	cd lib && rustc -O -g ${TUNE} compress/lib.rs
 
 test-lib: ${LIB_PATH}
 	cd lib && rustc --test compress/lib.rs && ./compress
