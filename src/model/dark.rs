@@ -9,7 +9,8 @@ http://code.google.com/p/adark/
 
 */
 
-use std::{cmp, io, vec};
+use std::{cmp, io};
+use std::vec_ng::Vec;
 use compress::entropy::ari;
 
 
@@ -96,11 +97,11 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv freq_log		: ~[~[ari::FrequencyTable]],	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
+	priv freq_log		: Vec<Vec<ari::FrequencyTable>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
 	priv freq_log_bits	: [BinaryMultiplex, ..2],
 	priv freq_mantissa	: [[ari::BinaryModel, ..MAX_BIT_CONTEXT+1], ..32],
 	/// specific context tracking
-	priv contexts		: ~[SymbolContext],
+	priv contexts		: Vec<SymbolContext>,
 	priv last_log_token	: uint,
 	/// update parameters
 	priv update_log_global		: uint,
@@ -115,13 +116,13 @@ impl Model {
 	/// Create a new Model instance
 	pub fn new(threshold: ari::Border) -> Model {
 		Model {
-			freq_log		: vec::from_fn(MAX_LOG_CONTEXT+1, |_| {
-				vec::from_fn(NUM_LAST_LOGS, |_|
+			freq_log		: Vec::from_fn(MAX_LOG_CONTEXT+1, |_| {
+				Vec::from_fn(NUM_LAST_LOGS, |_|
 					ari::FrequencyTable::new_flat(MAX_LOG_CODE, threshold))
 			}),
 			freq_log_bits	: [BinaryMultiplex::new(threshold), ..2],
 			freq_mantissa	: [[ari::BinaryModel::new_flat(threshold), ..MAX_BIT_CONTEXT+1], ..32],
-			contexts		: vec::from_fn(0x100, |_| SymbolContext::new(threshold)),
+			contexts		: Vec::from_fn(0x100, |_| SymbolContext::new(threshold)),
 			last_log_token	: 1,
 			update_log_global		: 12,
 			update_log_power		: 5,
@@ -167,14 +168,14 @@ impl super::DistanceModel for Model {
 	fn encode<W: io::Writer>(&mut self, mut dist: super::Distance, sym: super::Symbol, eh: &mut ari::Encoder<W>) {
 		dist += 1;
 		let log = Model::int_log(dist);
-		let context = &mut self.contexts[sym];
+		let context = self.contexts.get_mut(sym as uint);
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
 		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		// write exponent
 		{	// base part
 			let sym_freq = &mut context.freq_log;
 			let log_capped = cmp::min(log, MAX_LOG_CODE)-1;
-			let global_freq = &mut self.freq_log[avg_log_capped][self.last_log_token];
+			let global_freq = self.freq_log.get_mut(avg_log_capped).get_mut(self.last_log_token);
 			debug!("Dark encoding log {} with context[{}][{}] of sym {}",
 				log_capped, avg_log_capped, self.last_log_token, sym);
 			eh.encode(log_capped, &ari::TableSumProxy::new(1,sym_freq, 2,global_freq, 0)).unwrap();
@@ -217,13 +218,14 @@ impl super::DistanceModel for Model {
 	}
 
 	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
-		let context = &mut self.contexts[sym];
+		let context = self.contexts.get_mut(sym as uint);
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
 		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		// read exponent
 		let log_pre = { // base part
 			let sym_freq = &mut context.freq_log;
-			let global_freq = &mut self.freq_log[avg_log_capped][self.last_log_token];
+			let global_freq = self.freq_log.get_mut(avg_log_capped).get_mut(self.last_log_token)
+			;
 			let log = dh.decode(&ari::TableSumProxy::new(1, sym_freq, 2, global_freq, 0)).unwrap();
 			debug!("Dark decoding log {} with context[{}][{}] of sym {}",
 				log, avg_log_capped, self.last_log_token, sym);

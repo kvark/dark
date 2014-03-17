@@ -61,7 +61,8 @@ impl DistanceModel for RawOut {
 
 #[cfg(test)]
 pub mod test {
-	use std::{io, vec};
+	use std::io;
+	use std::vec_ng::Vec;
 	use rand;
 	use compress::entropy::ari;
 	use super::{Distance, DistanceModel};
@@ -77,9 +78,8 @@ pub mod test {
 		}
 		let (mem, err) = eh.finish();
 		err.unwrap();
-		let buffer = mem.unwrap();
 		m.reset();
-		let mut dh = ari::Decoder::new(io::BufReader::new(buffer));
+		let mut dh = ari::Decoder::new(io::BufReader::new(mem.get_ref()));
 		dh.start().unwrap();
 		for &(sym,dist) in input.iter() {
 			let d2 = m.decode(sym, &mut dh);
@@ -88,17 +88,17 @@ pub mod test {
 		}
 	}
 
-	fn gen_data(size: uint, max_dist: Distance) -> ~[(Symbol,Distance)] {
+	fn gen_data(size: uint, max_dist: Distance) -> Vec<(Symbol,Distance)> {
 		use rand::Rng;
 		let mut rng = rand::StdRng::new();
-		vec::from_fn(size, |_| {
+		Vec::from_fn(size, |_| {
 			(rng.gen::<Symbol>(), rng.gen_range(0, max_dist))
 		})
 	}
 
 	fn roundtrips<M: DistanceModel>() {
-		roundtrip::<M>([(1,1),(2,2),(3,3),(4,4)]);
-		roundtrip::<M>(gen_data(1000,200));
+		roundtrip::<M>([(1,1),(2,2),(3,3),(4,4)].as_slice());
+		roundtrip::<M>(gen_data(1000,200).as_slice());
 	}
 	
 	#[test]

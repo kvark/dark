@@ -11,7 +11,8 @@ extern crate rand;
 #[cfg(test)]
 extern crate test;
 
-use std::{io, os};
+use std::{io};
+use std::vec_ng::Vec;
 use model::DistanceModel;
 
 /// Block encoding/decoding logic
@@ -30,20 +31,24 @@ pub fn main() {
 		//getopts::optopt("o", "output", "set output file name", "NAME"),
 		getopts::optflag("h", "help", "print this help info"),
 	];
-	let args = os::args();
+	//let args = os::args();
+	let mut args: Vec<~str> = Vec::new();
+	args.push(~"dark");
 	let matches = match getopts::getopts(args.tail(), options) {
 		Ok(m)	=> m,
 		Err(f)	=> fail!(f.to_err_msg())
 	};
-	if matches.opt_present("h") || matches.free.is_empty() {
+	//if matches.opt_present("h") || matches.free.is_empty() {
+	if true {
 		println!("{}", getopts::usage(
-			format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]),
+			format!("Dark compressor usage:\n{} [options] input_file[.dark]", *args.get(0)),
 			options));
 		return
 	}
 
 	let model = matches.opt_str("m").unwrap_or(~"exp");
-	let input_path = Path::new(matches.free[0].clone());
+	//let input_path = Path::new(matches.free[0].clone());
+	let input_path = Path::new("input.bin");
 	let file_name = input_path.filename_str().unwrap();
 	if file_name.ends_with(extension) {
 		let mut in_file = match io::File::open(&input_path) {
@@ -70,13 +75,14 @@ pub fn main() {
 		};
 		err.unwrap();
 	}else {
-		let input = match io::File::open(&input_path).read_to_end() {
+		/*let input = match io::File::open(&input_path).read_to_end() {
 			Ok(data) => data,
 			Err(e) => {
 				println!("Input {} can not be read: {}", input_path.as_str(), e.to_str());
 				return;
 			}
-		};
+		};*/
+		let input: &[u8] = &[0u8];
 		let n = input.len();
 		// write the block size
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));

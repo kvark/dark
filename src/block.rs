@@ -4,7 +4,8 @@ Block encoding/decoding routines
 
 */
 
-use std::{io, vec};
+use std::io;
+use std::vec_ng::Vec;
 use compress::bwt;
 use compress::entropy::ari;
 use model::{Distance, DistanceModel};
@@ -48,11 +49,11 @@ impl<M: DistanceModel> Encoder<M> {
 		let (output, origin) = {
 			let suf = self.sac.compute(input);
 			let mut iter = bwt::TransformIterator::new(input, suf);
-			let out = iter.to_owned_vec();
+			let out: Vec<u8> = iter.collect();
 			(out, iter.get_origin())
 		};
 		let suf = self.sac.reuse().mut_slice_to(block_size);
-		let dc_init = bwt::dc::encode(output, suf, &mut self.mtf);
+		let dc_init = bwt::dc::encode(output.as_slice(), suf, &mut self.mtf);
 		// encode alphabet
 		let alphabet_size = dc_init.len();
 		let mut helper = if alphabet_size > 111 {
@@ -71,7 +72,9 @@ impl<M: DistanceModel> Encoder<M> {
 		}else {
 			info!("Alphabet of size {}", alphabet_size);
 			writer.write_u8(alphabet_size as u8).unwrap();
-			writer.write( dc_init.map(|&(s,_)| s) ).unwrap();
+			for &(s,_) in dc_init.iter() {
+				writer.write_u8(s).unwrap();
+			}
 			let mut eh = ari::Encoder::new(writer);
 			for &(sym,d) in dc_init.iter() {
 				debug!("Init distance {} for {}", d, sym);
@@ -97,8 +100,8 @@ impl<M: DistanceModel> Encoder<M> {
 
 /// A basic block decoder
 pub struct Decoder<M> {
-	priv input		: ~[u8],
-	priv suffixes	: ~[saca::Suffix],
+	priv input		: Vec<u8>,
+	priv suffixes	: Vec<saca::Suffix>,
 	priv mtf		: bwt::mtf::MTF,
 	/// Distance decoding model
 	model			: M,
@@ -108,8 +111,8 @@ impl<M: DistanceModel> Decoder<M> {
 	/// Create a new decoder instance
 	pub fn new(n: uint) -> Decoder<M> {
 		Decoder {
-			input	: vec::from_elem(n, 0u8),
-			suffixes: vec::from_elem(n, 0 as saca::Suffix),
+			input	: Vec::from_elem(n, 0u8),
+			suffixes: Vec::from_elem(n, 0 as saca::Suffix),
 			mtf		: bwt::mtf::MTF::new(),
 			model	: DistanceModel::new_default(),
 		}
@@ -132,7 +135,7 @@ impl<M: DistanceModel> Decoder<M> {
 		let model = &mut self.model;
 		let mut dh = ari::Decoder::new(reader);
 		dh.start().unwrap();
-		bwt::dc::decode(alpha_opt, self.input, &mut self.mtf, |sym| {
+		bwt::dc::decode(alpha_opt, self.input.as_mut_slice(), &mut self.mtf, |sym| {
 			let d = model.decode(sym, &mut dh);
 			debug!("Distance {} for {}", d, sym);
 			Ok(d as uint)
@@ -140,7 +143,7 @@ impl<M: DistanceModel> Decoder<M> {
 		let origin = model.decode(0, &mut dh) as uint;
 		info!("Origin: {}", origin);
 		// undo BWT and write output
-		for b in bwt::decode(self.input, origin, self.suffixes) {
+		for b in bwt::decode(self.input.as_slice(), origin, self.suffixes.as_mut_slice()) {
 			writer.write_u8(b).unwrap();
 		}
 		let result = writer.flush();
@@ -151,19 +154,18 @@ impl<M: DistanceModel> Decoder<M> {
 
 #[cfg(test)]
 pub mod test {
-	use std::{io, vec};
+	use std::io;
+	use std::vec_ng::Vec;
 	use test;
 	use super::super::model::{DistanceModel, exp, ybs};
 
 	fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
 		let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, io::MemWriter::new());
 		err.unwrap();
-		let buffer = writer.unwrap();
-		let reader = io::BufReader::new(buffer);
+		let reader = io::BufReader::new(writer.get_ref());
 		let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, io::MemWriter::new());
 		err.unwrap();
-		let decoded = output.unwrap();
-		assert_eq!(bytes.as_slice(), decoded.as_slice());
+		assert_eq!(bytes.as_slice(), output.get_ref());
 	}
 	
 	#[test]
@@ -176,10 +178,10 @@ pub mod test {
 	#[bench]
 	fn encode_speed(bh: &mut test::BenchHarness) {
 		let input = include_bin!("../lib/compress/data/test.txt");
-		let mut buffer = vec::from_elem(input.len(), 0u8);
+		let mut buffer = Vec::from_elem(input.len(), 0u8);
 		let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
 		bh.iter(|| {
-			let (_, err) = encoder.encode(input, io::BufWriter::new(buffer));
+			let (_, err) = encoder.encode(input, io::BufWriter::new(buffer.as_mut_slice()));
 			err.unwrap();
 		});
 		bh.bytes = input.len() as u64;
@@ -192,12 +194,11 @@ pub mod test {
 		encoder.model.reset();
 		let (writer, err) = encoder.encode(input, io::MemWriter::new());
 		err.unwrap();
-		let buffer1 = writer.unwrap();
-		let mut buffer2 = vec::from_elem(input.len(), 0u8);
+		let mut buffer = Vec::from_elem(input.len(), 0u8);
 		let mut decoder = super::Decoder::<ybs::Model>::new(input.len());
 		bh.iter(|| {
 			decoder.model.reset();
-			let (_, _, err) = decoder.decode(io::BufReader::new(buffer1), io::BufWriter::new(buffer2));
+			let (_, _, err) = decoder.decode(io::BufReader::new(writer.get_ref()), io::BufWriter::new(buffer.as_mut_slice()));
 			err.unwrap();
 		});
 		bh.bytes = input.len() as u64;

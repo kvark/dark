@@ -11,7 +11,8 @@ https://code.google.com/p/ge-nong/
 
 */
 
-use std::{cmp, iter, vec};
+use std::{cmp, iter};
+use std::vec_ng::Vec;
 
 pub type Symbol = u8;
 pub type Suffix = u32;
@@ -326,7 +327,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 
 /// Suffix Array Constructor
 pub struct Constructor {
-	priv suffixes	: ~[Suffix],
+	priv suffixes	: Vec<Suffix>,
 	priv n			: uint,
 }
 
@@ -337,7 +338,7 @@ impl Constructor {
 		let extra = 0x100 + cmp::max(max_n/4, cmp::min(extra_2s, max_n/2));
 		info!("n: {}, extra words: {}", max_n, extra);
 		Constructor {
-			suffixes: vec::from_elem(max_n+extra, 0 as Suffix),
+			suffixes: Vec::from_elem(max_n+extra, 0 as Suffix),
 			n		: max_n,
 		}
 	}
@@ -351,9 +352,9 @@ impl Constructor {
 	pub fn compute<'a>(&'a mut self, input: &[Symbol]) -> &'a [Suffix] {
 		assert_eq!(input.len(), self.n);
 		if true {
-			saca(input, 0x100, self.suffixes);
+			saca(input, 0x100, self.suffixes.as_mut_slice());
 		}else {
-			sort_direct(input, self.suffixes);
+			sort_direct(input, self.suffixes.as_mut_slice());
 		}
 
 		debug!("construct suf: {:?}", self.suffixes.slice_to(self.n));
@@ -369,6 +370,7 @@ impl Constructor {
 
 #[cfg(test)]
 pub mod test {
+	use std::vec_ng::Vec;
 	use test;
 	use compress::bwt;
 
@@ -377,14 +379,12 @@ pub mod test {
 		let (output, origin) = {
 			let suf = con.compute(input);
 			assert_eq!(suf.as_slice(), suf_expected);
-			let mut iter = bwt::TransformIterator::new(input, suf);
-			let out = iter.by_ref().to_owned_vec();
-			(out, iter.get_origin())
+			bwt::TransformIterator::new(input, suf).complete()
 		};
 		assert_eq!(origin, origin_expected);
 		assert_eq!(output.as_slice(), out_expected);
 		let suf = con.reuse().mut_slice_to(input.len());
-		let decoded = bwt::decode(output, origin, suf).to_owned_vec();
+		let decoded: Vec<super::Symbol> = bwt::decode(output.as_slice(), origin, suf).collect();
 		assert_eq!(input.as_slice(), decoded.as_slice());
 	}
 
@@ -398,12 +398,11 @@ pub mod test {
 		let mut con = super::Constructor::new(input.len());
 		let (output, origin) = {
 			let suf = con.compute(input);
-			let mut iter = bwt::TransformIterator::new(input, suf);
-			let out = iter.by_ref().to_owned_vec();
-			(out, iter.get_origin())	
+			bwt::TransformIterator::new(input, suf).complete()
 		};
-		let decoded = bwt::decode(output, origin, con.reuse().mut_slice_to(input.len())).
-			take(input.len()).to_owned_vec();
+		let decoded: Vec<super::Symbol> =
+			bwt::decode(output.as_slice(), origin, con.reuse().mut_slice_to(input.len())).
+			take(input.len()).collect();
 		assert_eq!(input.as_slice(), decoded.as_slice());
 	}
 

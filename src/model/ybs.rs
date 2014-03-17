@@ -14,7 +14,8 @@ Vadim Yookin for sharing details of YBS implementation.
 
 */
 
-use std::{cmp, io, num, vec};
+use std::{cmp, io, num};
+use std::vec_ng::Vec;
 use compress::entropy::ari;
 
 
@@ -39,7 +40,7 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv table_log	: ~[ari::FrequencyTable],
+	priv table_log	: Vec<ari::FrequencyTable>,
 	priv table_high	: ari::FrequencyTable,
 	priv bin_rest	: [ari::BinaryModel, ..3],
 	/// specific context tracking
@@ -51,7 +52,7 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let low_logs = 12u;
 		Model {
-			table_log	: vec::from_fn(low_logs, |_| ari::FrequencyTable::new_flat(low_logs+1, threshold)),
+			table_log	: Vec::from_fn(low_logs, |_| ari::FrequencyTable::new_flat(low_logs+1, threshold)),
 			table_high	: ari::FrequencyTable::new_flat(32-low_logs, threshold),
 			bin_rest	: [ari::BinaryModel::new_flat(threshold), ..3],
 			contexts	: [SymbolContext::new(), ..0x100],
@@ -88,7 +89,7 @@ impl super::DistanceModel for Model {
 		let log = int_log(dist);
 		let context = &mut self.contexts[sym];
 		let con_log = cmp::min(context.avg_log, max_low_log);
-		let freq_log = &mut self.table_log[con_log];
+		let freq_log = self.table_log.get_mut(con_log);
 		// write exponent
 		let log_encoded = cmp::min(log, max_low_log);
 		eh.encode(log_encoded, freq_log).unwrap();
@@ -118,7 +119,7 @@ impl super::DistanceModel for Model {
 		let max_low_log = self.table_log.len()-1;
 		let context = &mut self.contexts[sym];
 		let con_log = cmp::min(context.avg_log, max_low_log);
-		let freq_log = &mut self.table_log[con_log];
+		let freq_log = self.table_log.get_mut(con_log);
 		// read exponent
 		let log_decoded = dh.decode(freq_log).unwrap();
 		// update model
