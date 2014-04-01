@@ -10,7 +10,7 @@ http://code.google.com/p/adark/
 */
 
 use std::{cmp, io};
-use std::vec_ng::Vec;
+use std::vec::Vec;
 use compress::entropy::ari;
 
 

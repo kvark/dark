@@ -5,7 +5,7 @@ Block encoding/decoding routines
 */
 
 use std::io;
-use std::vec_ng::Vec;
+use std::vec::Vec;
 use compress::bwt;
 use compress::entropy::ari;
 use model::{Distance, DistanceModel};
@@ -155,7 +155,7 @@ impl<M: DistanceModel> Decoder<M> {
 #[cfg(test)]
 pub mod test {
 	use std::io;
-	use std::vec_ng::Vec;
+	use std::vec::Vec;
 	use test;
 	use super::super::model::{DistanceModel, exp, ybs};
 

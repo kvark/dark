@@ -28,7 +28,7 @@ bin/debug: bin/dark
 	rustc -g2 -L lib -o bin/debug src/main.rs
 
 bin/test: bin/dark
-	rustc -O -L lib --test -A deprecated_owned_vector -o bin/test src/main.rs
+	rustc -O -L lib --test -o bin/test src/main.rs
 	
 bin/bench: bin/dark
 	rustc -O -L lib --test -o bin/bench src/main.rs

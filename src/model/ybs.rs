@@ -15,7 +15,7 @@ Vadim Yookin for sharing details of YBS implementation.
 */
 
 use std::{cmp, io, num};
-use std::vec_ng::Vec;
+use std::vec::Vec;
 use compress::entropy::ari;
 
 

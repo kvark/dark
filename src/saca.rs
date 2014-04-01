@@ -12,7 +12,7 @@ https://code.google.com/p/ge-nong/
 */
 
 use std::{cmp, iter};
-use std::vec_ng::Vec;
+use std::vec::Vec;
 
 pub type Symbol = u8;
 pub type Suffix = u32;
@@ -35,7 +35,7 @@ fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
 }
 
 
-fn fill<T: Pod>(slice: &mut [T], value: T) {
+fn fill<T: Copy>(slice: &mut [T], value: T) {
 	for elem in slice.mut_iter() {
 		*elem = value;
 	}
@@ -370,7 +370,7 @@ impl Constructor {
 
 #[cfg(test)]
 pub mod test {
-	use std::vec_ng::Vec;
+	use std::vec::Vec;
 	use test;
 	use compress::bwt;
 
@@ -379,7 +379,9 @@ pub mod test {
 		let (output, origin) = {
 			let suf = con.compute(input);
 			assert_eq!(suf.as_slice(), suf_expected);
-			bwt::TransformIterator::new(input, suf).complete()
+			let mut iter = bwt::TransformIterator::new(input, suf);
+			let out: ~[super::Symbol] = iter.collect();
+			(out, iter.get_origin())
 		};
 		assert_eq!(origin, origin_expected);
 		assert_eq!(output.as_slice(), out_expected);
@@ -398,7 +400,9 @@ pub mod test {
 		let mut con = super::Constructor::new(input.len());
 		let (output, origin) = {
 			let suf = con.compute(input);
-			bwt::TransformIterator::new(input, suf).complete()
+			let mut iter = bwt::TransformIterator::new(input, suf);
+			let out: ~[super::Symbol] = iter.collect();
+			(out, iter.get_origin())
 		};
 		let decoded: Vec<super::Symbol> =
 			bwt::decode(output.as_slice(), origin, con.reuse().mut_slice_to(input.len())).

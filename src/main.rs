@@ -1,9 +1,12 @@
 #[crate_id = "dark"];
 #[crate_type = "bin"];
 #[deny(warnings, missing_doc)];
+#[feature(phase)];
 
 //! Dark compressor prototype
 
+#[phase(syntax, link)]
+extern crate log;
 extern crate getopts;
 extern crate compress;
 #[cfg(test)]
@@ -12,7 +15,7 @@ extern crate rand;
 extern crate test;
 
 use std::{io};
-use std::vec_ng::Vec;
+use std::vec::Vec;
 use model::DistanceModel;
 
 /// Block encoding/decoding logic

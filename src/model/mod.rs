@@ -62,7 +62,7 @@ impl DistanceModel for RawOut {
 #[cfg(test)]
 pub mod test {
 	use std::io;
-	use std::vec_ng::Vec;
+	use std::vec::Vec;
 	use rand;
 	use compress::entropy::ari;
 	use super::{Distance, DistanceModel};
