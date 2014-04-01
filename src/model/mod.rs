@@ -35,7 +35,7 @@ pub trait DistanceModel {
 
 /// Raw (Sym,Dist) pairs output
 pub struct RawOut {
-	priv out: io::File,
+	out: io::File,
 }
 
 impl DistanceModel for RawOut {

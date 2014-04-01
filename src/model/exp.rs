@@ -10,9 +10,9 @@ use compress::entropy::ari;
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv bin_zero	: ari::BinaryModel,
-	priv table_log	: ari::FrequencyTable,
-	priv bin_rest	: [ari::BinaryModel, ..4],
+	bin_zero	: ari::BinaryModel,
+	table_log	: ari::FrequencyTable,
+	bin_rest	: [ari::BinaryModel, ..4],
 }
 
 impl Model {

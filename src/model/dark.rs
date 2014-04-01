@@ -16,8 +16,8 @@ use compress::entropy::ari;
 
 /// Aggregate frequency model of two sources
 pub struct Aggregate<'a,X,Y> {
-	priv x: &'a X,
-	priv y: &'a Y,
+	x: &'a X,
+	y: &'a Y,
 }
 
 impl<'a, X: ari::Model, Y: ari::Model>
@@ -46,7 +46,7 @@ static ADAPT_POWERS: [int, ..9] = [6,5,4,3,2,1,4,6,4];
 
 
 struct BinaryMultiplex {
-	freqs: [ari::BinaryModel, ..32],
+	pub freqs: [ari::BinaryModel, ..32],
 }
 
 impl BinaryMultiplex {
@@ -64,9 +64,9 @@ impl BinaryMultiplex {
 
 
 struct SymbolContext {
-	avg_dist	: int,
-	freq_log	: ari::FrequencyTable,
-	freq_extra	: BinaryMultiplex,
+	pub avg_dist	: int,
+	pub freq_log	: ari::FrequencyTable,
+	pub freq_extra	: BinaryMultiplex,
 }
 
 impl SymbolContext {
@@ -97,19 +97,19 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv freq_log		: Vec<Vec<ari::FrequencyTable>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
-	priv freq_log_bits	: [BinaryMultiplex, ..2],
-	priv freq_mantissa	: [[ari::BinaryModel, ..MAX_BIT_CONTEXT+1], ..32],
+	freq_log		: Vec<Vec<ari::FrequencyTable>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
+	freq_log_bits	: [BinaryMultiplex, ..2],
+	freq_mantissa	: [[ari::BinaryModel, ..MAX_BIT_CONTEXT+1], ..32],
 	/// specific context tracking
-	priv contexts		: Vec<SymbolContext>,
-	priv last_log_token	: uint,
+	contexts		: Vec<SymbolContext>,
+	last_log_token	: uint,
 	/// update parameters
-	priv update_log_global		: uint,
-	priv update_log_power		: uint,
-	priv update_log_add			: ari::Border,
-	priv update_bits_global		: uint,
-	priv update_bits_sym		: uint,
-	priv update_mantissa_global	: uint,
+	update_log_global		: uint,
+	update_log_power		: uint,
+	update_log_add			: ari::Border,
+	update_bits_global		: uint,
+	update_bits_sym		: uint,
+	update_mantissa_global	: uint,
 }
 
 impl Model {

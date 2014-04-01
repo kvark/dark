@@ -24,8 +24,8 @@ impl ari::Model for Raw {
 
 /// A simple DC model, coding up to 0xFF distances as-is, and with following 3 bytes otherwise
 pub struct Model {
-	priv freq: Vec<ari::FrequencyTable>,
-	priv up: [uint, ..4],
+	freq: Vec<ari::FrequencyTable>,
+	up	: [uint, ..4],
 }
 
 impl super::DistanceModel for Model {

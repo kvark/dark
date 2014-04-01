@@ -20,8 +20,8 @@ use compress::entropy::ari;
 
 
 struct SymbolContext {
-	avg_log		: uint,
-	last_diff	: uint,
+	pub avg_log		: uint,
+	pub last_diff	: uint,
 }
 
 impl SymbolContext {
@@ -40,11 +40,11 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	priv table_log	: Vec<ari::FrequencyTable>,
-	priv table_high	: ari::FrequencyTable,
-	priv bin_rest	: [ari::BinaryModel, ..3],
+	table_log	: Vec<ari::FrequencyTable>,
+	table_high	: ari::FrequencyTable,
+	bin_rest	: [ari::BinaryModel, ..3],
 	/// specific context tracking
-	priv contexts	: [SymbolContext, ..0x100],
+	contexts	: [SymbolContext, ..0x100],
 }
 
 impl Model {

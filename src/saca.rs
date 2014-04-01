@@ -327,8 +327,8 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 
 /// Suffix Array Constructor
 pub struct Constructor {
-	priv suffixes	: Vec<Suffix>,
-	priv n			: uint,
+	suffixes	: Vec<Suffix>,
+	n			: uint,
 }
 
 impl Constructor {

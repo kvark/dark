@@ -14,10 +14,10 @@ use saca;
 
 /// A basic block encoder
 pub struct Encoder<M> {
-	priv sac	: saca::Constructor,
-	priv mtf	: bwt::mtf::MTF,
+	sac	: saca::Constructor,
+	mtf	: bwt::mtf::MTF,
 	/// Distance encoding model
-	model		: M,
+	pub model	: M,
 }
 
 #[cfg(tune)]
@@ -100,11 +100,11 @@ impl<M: DistanceModel> Encoder<M> {
 
 /// A basic block decoder
 pub struct Decoder<M> {
-	priv input		: Vec<u8>,
-	priv suffixes	: Vec<saca::Suffix>,
-	priv mtf		: bwt::mtf::MTF,
+	input		: Vec<u8>,
+	suffixes	: Vec<saca::Suffix>,
+	mtf			: bwt::mtf::MTF,
 	/// Distance decoding model
-	model			: M,
+	pub model	: M,
 }
 
 impl<M: DistanceModel> Decoder<M> {

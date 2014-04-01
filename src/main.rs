@@ -1,7 +1,7 @@
-#[crate_id = "dark"];
-#[crate_type = "bin"];
-#[deny(warnings, missing_doc)];
-#[feature(phase)];
+#![crate_id = "dark"]
+#![crate_type = "bin"]
+#![deny(warnings, missing_doc)]
+#![feature(phase)]
 
 //! Dark compressor prototype
 
