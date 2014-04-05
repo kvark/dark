@@ -87,7 +87,7 @@ impl super::DistanceModel for Model {
 		}
 		let max_low_log = self.table_log.len()-1;
 		let log = int_log(dist);
-		let context = &mut self.contexts[sym];
+		let context = &mut self.contexts[sym as uint];
 		let con_log = cmp::min(context.avg_log, max_low_log);
 		let freq_log = self.table_log.get_mut(con_log);
 		// write exponent
@@ -117,7 +117,7 @@ impl super::DistanceModel for Model {
 
 	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let max_low_log = self.table_log.len()-1;
-		let context = &mut self.contexts[sym];
+		let context = &mut self.contexts[sym as uint];
 		let con_log = cmp::min(context.avg_log, max_low_log);
 		let freq_log = self.table_log.get_mut(con_log);
 		// read exponent

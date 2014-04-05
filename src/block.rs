@@ -61,7 +61,7 @@ impl<M: DistanceModel> Encoder<M> {
 			writer.write_u8(0).unwrap();
 			let mut rd = [block_size as Distance, ..0x100];
 			for &(sym,d) in dc_init.iter() {
-				rd[sym] = d;
+				rd[sym as uint] = d;
 			}
 			let mut eh = ari::Encoder::new(writer);
 			for (sym,&d) in rd.iter().enumerate() {

@@ -90,7 +90,7 @@ pub mod test {
 
 	fn gen_data(size: uint, max_dist: Distance) -> Vec<(Symbol,Distance)> {
 		use rand::Rng;
-		let mut rng = rand::StdRng::new();
+		let mut rng = rand::StdRng::new().unwrap();
 		Vec::from_fn(size, |_| {
 			(rng.gen::<Symbol>(), rng.gen_range(0, max_dist))
 		})

@@ -72,7 +72,7 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 			if succ_t { // LMS detected
 				let buck = &mut buckets[cur.to_uint().unwrap()];
 				*buck -= 1;
-				suffixes[*buck] = (i+1) as Suffix;
+				suffixes[*buck as uint] = (i+1) as Suffix;
 				debug!("\tput_substr: detected LMS suf[{}] of symbol '{}', value {}",
 					*buck, cur.to_uint().unwrap(), i+1);
 			}
@@ -84,7 +84,7 @@ fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], b
 		let cur = &input[0];
 		let buck = &mut buckets[cur.to_uint().unwrap()];
 		*buck -= 1;
-		suffixes[*buck] = 0;
+		suffixes[*buck as uint] = 0;
 		debug!("\tput_substr: detected LMS suf[{}] of symbol '{}', value {}",
 			*buck, cur.to_uint().unwrap(), 0);
 	}
@@ -102,20 +102,20 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		debug!("\tinduce_low: induced suf[{}] of last symbol '{}' to value {}",
 			*buck, sym.to_uint().unwrap(), input.len()-1);
-		suffixes[*buck] = (input.len()-1) as Suffix;
+		suffixes[*buck as uint] = (input.len()-1) as Suffix;
 		*buck += 1;
 	}
 
 	for i in range(0, suffixes.len()) {
 		let suf = suffixes[i];
 		if suf == SUF_INVALID || suf == 0 {continue}
-		let sym = &input[suf-1];
-		if *sym >= input[suf] { // L-type
+		let sym = &input[suf as uint - 1];
+		if *sym >= input[suf as uint] { // L-type
 			let buck = &mut buckets[sym.to_uint().unwrap()];
 			debug!("\tinduce_low: induced suf[{}] of symbol '{}' to value {}",
 				*buck, sym.to_uint().unwrap(), suf-1);
 			if !clean || suf != 1 {	//we don't want anything at 0 now
-				suffixes[*buck] = suf-1;
+				suffixes[*buck as uint] = suf-1;
 			}
 			*buck += 1;
 			if clean {
@@ -135,14 +135,14 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 	for i in range(0, suffixes.len()).rev() {
 		let suf = suffixes[i];
 		if suf == SUF_INVALID || suf == 0 {continue}
-		let sym = &input[suf-1];
+		let sym = &input[suf as uint - 1];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		if *buck as uint <= i { // S-type
-			assert!(*sym <= input[suf]);
+			assert!(*sym <= input[suf as uint]);
 			assert!(*buck>0, "Invalid bucket for symbol {} at suffix {}",
 				sym.to_uint().unwrap(), suf);
 			*buck -= 1;
-			suffixes[*buck] = suf-1;
+			suffixes[*buck as uint] = suf-1;
 			debug!("\tinduce_sup: induced suf[{}] of symbol '{}' to value {}",
 				*buck, sym.to_uint().unwrap(), suf-1);
 			if clean {
@@ -222,7 +222,7 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
 	assert!(iter.next().is_none());
 	
 	for suf in sa_new.mut_iter() {
-		*suf = input_new[*suf];
+		*suf = input_new[*suf as uint];
 	}
 }
 
@@ -242,11 +242,11 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 		let p = suffixes[i];
 		assert!(p != SUF_INVALID);
 		suffixes[i] = SUF_INVALID;
-		let sym = &input[p];
+		let sym = &input[p as uint];
 		let buck = &mut buckets[sym.to_uint().unwrap()];
 		*buck -= 1;
 		assert!(*buck as uint >= i);
-		suffixes[*buck] = p;
+		suffixes[*buck as uint] = p;
 	}
 
 	debug!("put_suffix: {:?}", suffixes);
@@ -296,7 +296,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 		}else {
 			// Get the suffix array of s1 directly.
 			for (i,&sym) in input_new.iter().enumerate() {
-				sa_new[sym] = i as Suffix;
+				sa_new[sym as uint] = i as Suffix;
 			}
 			debug!("Sorted suffixes: {:?}", sa_new.slice_to(n1));
 		}
@@ -318,7 +318,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 		if log_enabled!(4) {
 			for (i,p) in suffixes.iter().enumerate() {
 				assert_eq!(suffixes.slice_to(i).iter().find(|suf| *suf==p), None);
-				assert!(i == 0 || input[suffixes[i-1]] <= input[suffixes[i]]);
+				assert!(i == 0 || input[suffixes[i-1] as uint] <= input[suffixes[i] as uint]);
 			}	
 		}
 	}

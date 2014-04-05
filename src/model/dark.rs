@@ -87,7 +87,7 @@ impl SymbolContext {
 	fn update(&mut self, dist: super::Distance, log_diff: int) {
 		let adapt = if log_diff < -6 {7}
 		else if log_diff >= 3 {3}
-		else { ADAPT_POWERS[6+log_diff] };
+		else { ADAPT_POWERS[(6+log_diff) as uint] };
 		self.avg_dist += (adapt*((dist as int) - self.avg_dist)) >> 3;
 		debug!("\tUpdated avg_dist to {}, using raz {}, dist {} and power {}",
 			self.avg_dist, log_diff, dist, adapt);
