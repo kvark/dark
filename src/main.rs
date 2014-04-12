@@ -37,12 +37,14 @@ pub fn main() {
 	//let args = os::args();
 	let mut args: Vec<~str> = Vec::new();
 	args.push(~"dark");
+	args.push(~"-m");
+	args.push(~"dark");
+	args.push(~"data/book1");
 	let matches = match getopts::getopts(args.tail(), options) {
 		Ok(m)	=> m,
 		Err(f)	=> fail!(f.to_err_msg())
 	};
-	//if matches.opt_present("h") || matches.free.is_empty() {
-	if true {
+	if matches.opt_present("h") || matches.free.is_empty() {
 		println!("{}", getopts::usage(
 			format!("Dark compressor usage:\n{} [options] input_file[.dark]", *args.get(0)),
 			options));
@@ -50,8 +52,8 @@ pub fn main() {
 	}
 
 	let model = matches.opt_str("m").unwrap_or(~"exp");
-	//let input_path = Path::new(matches.free[0].clone());
-	let input_path = Path::new("input.bin");
+	info!("Using model: {}", model);
+	let input_path = Path::new(matches.free.get(0).clone());
 	let file_name = input_path.filename_str().unwrap();
 	if file_name.ends_with(extension) {
 		let mut in_file = match io::File::open(&input_path) {
@@ -78,14 +80,13 @@ pub fn main() {
 		};
 		err.unwrap();
 	}else {
-		/*let input = match io::File::open(&input_path).read_to_end() {
+		let input = match io::File::open(&input_path).read_to_end() {
 			Ok(data) => data,
 			Err(e) => {
 				println!("Input {} can not be read: {}", input_path.as_str(), e.to_str());
 				return;
 			}
-		};*/
-		let input: &[u8] = &[0u8];
+		};
 		let n = input.len();
 		// write the block size
 		let out_path = Path::new(format!("{}{}", file_name, ".dark"));
@@ -94,11 +95,11 @@ pub fn main() {
 		out_file.write_le_u32(n as u32).unwrap();
 		// encode the block
 		let (_, err) = match model.as_slice() {
-			"dark"	=> block::Encoder::<model::dark::Model>		::new(n).encode(input, out_file),
-			"exp"	=> block::Encoder::<model::exp::Model>		::new(n).encode(input, out_file),
-			"raw"	=> block::Encoder::<model::RawOut>			::new(n).encode(input, out_file),
-			"simple"=> block::Encoder::<model::simple::Model>	::new(n).encode(input, out_file),
-			"ybs"	=> block::Encoder::<model::ybs::Model>		::new(n).encode(input, out_file),
+			"dark"	=> block::Encoder::<model::dark::Model>		::new(n).encode(input.as_slice(), out_file),
+			"exp"	=> block::Encoder::<model::exp::Model>		::new(n).encode(input.as_slice(), out_file),
+			"raw"	=> block::Encoder::<model::RawOut>			::new(n).encode(input.as_slice(), out_file),
+			"simple"=> block::Encoder::<model::simple::Model>	::new(n).encode(input.as_slice(), out_file),
+			"ybs"	=> block::Encoder::<model::ybs::Model>		::new(n).encode(input.as_slice(), out_file),
 			_		=> fail!("Unknown encoding model: {}", model)
 		};
 		err.unwrap();

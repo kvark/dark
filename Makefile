@@ -63,7 +63,7 @@ etc/callgrind/dark.out: bin/profile
 
 
 pack: bin/dark
-	bin/dark data/book1
+	bin/dark -m dark data/book1
 	ls -l book1.dark
 	bin/dark book1.dark
 	cmp data/book1 book1.orig

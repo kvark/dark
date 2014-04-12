@@ -42,7 +42,7 @@ impl<M: DistanceModel> Encoder<M> {
 	}
 
 	/// Encode a block into a given writer
-	pub fn encode<W: Writer>(&mut self, input: &[u8], mut writer: W) -> (W, io::IoResult<()>) {
+	pub fn encode<W: Writer>(&mut self, input: &[u8], writer: W) -> (W, io::IoResult<()>) {
 		let block_size = input.len();
 		assert!(block_size <= self.sac.capacity());
 		// perform BWT and DC
@@ -53,47 +53,43 @@ impl<M: DistanceModel> Encoder<M> {
 			(out, iter.get_origin())
 		};
 		let suf = self.sac.reuse().mut_slice_to(block_size);
-		let dc_init = bwt::dc::encode(output.as_slice(), suf, &mut self.mtf);
-		// encode alphabet
-		let alphabet_size = dc_init.len();
-		let mut helper = if alphabet_size > 111 {
-			info!("Alphabet is sparse");
-			writer.write_u8(0).unwrap();
-			let mut rd = [block_size as Distance, ..0x100];
-			for &(sym,d) in dc_init.iter() {
-				rd[sym as uint] = d;
+		let mut dc_iter = bwt::dc::encode(output.as_slice(), suf, &mut self.mtf);
+		let mut eh = ari::Encoder::new(writer);
+		// encode init distances
+		let mut cur_active = true;
+		let mut i = 0u;
+		while i<0xFF {
+			let base = i;
+			if cur_active {
+				while i<0xFF && dc_iter.get_init()[i]<block_size {
+					i += 1;
+				}
+				let num = (if base==0 {i} else {i-base-1}) as Distance;
+				debug!("Init fill num {}", num);
+				self.model.encode(num, 0, &mut eh);
+				for (sym,d) in dc_iter.get_init().iter().enumerate().skip(base).take(i-base) {
+					self.model.encode(*d as Distance, sym as u8, &mut eh);
+					debug!("Init {} for {}", *d, sym);
+				}
+				cur_active = false;
+			}else {
+				while {i+=1; i<0xFF && dc_iter.get_init()[i]==block_size} {}
+				let num = (i-base-1) as Distance;
+				debug!("Init empty num {}", num);
+				self.model.encode(num, 0, &mut eh);
+				cur_active = true;
 			}
-			let mut eh = ari::Encoder::new(writer);
-			for (sym,&d) in rd.iter().enumerate() {
-				debug!("Init distance {} for {}", d, sym);
-				self.model.encode(d, sym as u8, &mut eh);
-			}
-			eh
-		}else {
-			info!("Alphabet of size {}", alphabet_size);
-			writer.write_u8(alphabet_size as u8).unwrap();
-			for &(s,_) in dc_init.iter() {
-				writer.write_u8(s).unwrap();
-			}
-			let mut eh = ari::Encoder::new(writer);
-			for &(sym,d) in dc_init.iter() {
-				debug!("Init distance {} for {}", d, sym);
-				self.model.encode(d, sym, &mut eh);
-			}
-			eh
-		};
+		}
 		// encode distances
-		for (&d,&sym) in suf.iter().zip(output.iter()) {
-			if (d as uint) < block_size {
-				debug!("Distance {} for {}", d, sym);
-				self.model.encode(d, sym, &mut helper);
-			}
+		for (d,ctx) in dc_iter {
+			debug!("Distance {} for {}", d, ctx.symbol);
+			self.model.encode(d, ctx.symbol, &mut eh);
 		}
 		// done
 		info!("Origin: {}", origin);
-		self.model.encode(origin as Distance, 0, &mut helper);
-		print_stats(&helper);
-		helper.finish()
+		self.model.encode(origin as Distance, 0, &mut eh);
+		print_stats(&eh);
+		eh.finish()
 	}
 }
 
@@ -119,25 +115,33 @@ impl<M: DistanceModel> Decoder<M> {
 	}
 
 	/// Decode a block by reading from a given Reader into some Writer
-	pub fn decode<R: Reader, W: Writer>(&mut self, mut reader: R, mut writer: W) -> (R, W, io::IoResult<()>) {
-		// decode alphabit
-		let alphabet_size = reader.read_u8().unwrap() as uint;
-		let mut alphabet = [0u8, ..0x100];
-		let alpha_opt = if alphabet_size == 0 {
-			info!("Alphabet is sparse");
-			None
-		}else {
-			reader.read( alphabet.mut_slice_to(alphabet_size) ).unwrap();
-			info!("Alphabet of size {}: {:?}", alphabet_size, alphabet.slice_to(alphabet_size));
-			Some(alphabet.slice_to(alphabet_size))
-		};
-		// decode distances
+	pub fn decode<R: Reader, W: Writer>(&mut self, reader: R, mut writer: W) -> (R, W, io::IoResult<()>) {
 		let model = &mut self.model;
 		let mut dh = ari::Decoder::new(reader);
 		dh.start().unwrap();
-		bwt::dc::decode(alpha_opt, self.input.as_mut_slice(), &mut self.mtf, |sym| {
-			let d = model.decode(sym, &mut dh);
-			debug!("Distance {} for {}", d, sym);
+		// decode init distances
+		let mut init = [self.input.len(), ..0x100];
+		let mut cur_active = true;
+		let mut i = 0u;
+		while i<0xFF {
+			let add  = if i==0 && cur_active {0u} else {1u};
+			let num = model.decode(0, &mut dh) as uint + add;
+			debug!("Init num {}", num);
+			if cur_active {
+				for (sym,d) in init.mut_iter().enumerate().skip(i).take(num)	{
+					*d = model.decode(sym as u8, &mut dh) as uint;
+					debug!("Init {} for {}", *d, sym);
+				}
+				cur_active = false;
+			}else {
+				cur_active = true;
+			}
+			i += num;
+		}
+		// decode distances
+		bwt::dc::decode(init, self.input.as_mut_slice(), &mut self.mtf, |ctx| {
+			let d = model.decode(ctx.symbol, &mut dh);
+			debug!("Distance {} for {}", d, ctx.symbol);
 			Ok(d as uint)
 		}).unwrap();
 		let origin = model.decode(0, &mut dh) as uint;
