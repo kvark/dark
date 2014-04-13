@@ -42,7 +42,7 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _sym: super::Symbol, eh: &mut ari::Encoder<W>) {
+	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		let bone = if dist==0 {0} else {1};
 		eh.encode(bone, &self.bin_zero).unwrap();
 		self.bin_zero.update(bone, 5);
@@ -72,7 +72,7 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn decode<R: io::Reader>(&mut self, _sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
+	fn decode<R: io::Reader>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let bone = dh.decode(&self.bin_zero).unwrap();
 		self.bin_zero.update(bone, 5);
 		if bone == 0 {

@@ -43,7 +43,7 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _sym: super::Symbol, eh: &mut ari::Encoder<W>) {
+	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		let val = cmp::min(0xFF, dist) as ari::Value;
 		eh.encode(val, self.freq.get(0)).unwrap();
 		self.freq.get_mut(0).update(val, self.up[0], 1);
@@ -57,7 +57,7 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn decode<R: io::Reader>(&mut self, _sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
+	fn decode<R: io::Reader>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let base = dh.decode(self.freq.get(0)).unwrap();
 		self.freq.get_mut(0).update(base, self.up[0], 1);
 		let d = if base == 0xFF {

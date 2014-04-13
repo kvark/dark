@@ -14,8 +14,7 @@ extern crate rand;
 #[cfg(test)]
 extern crate test;
 
-use std::{io};
-use std::vec::Vec;
+use std::{io,os};
 use model::DistanceModel;
 
 /// Block encoding/decoding logic
@@ -34,19 +33,14 @@ pub fn main() {
 		//getopts::optopt("o", "output", "set output file name", "NAME"),
 		getopts::optflag("h", "help", "print this help info"),
 	];
-	//let args = os::args();
-	let mut args: Vec<~str> = Vec::new();
-	args.push(~"dark");
-	args.push(~"-m");
-	args.push(~"dark");
-	args.push(~"data/book1");
+	let args = os::args();
 	let matches = match getopts::getopts(args.tail(), options) {
 		Ok(m)	=> m,
 		Err(f)	=> fail!(f.to_err_msg())
 	};
 	if matches.opt_present("h") || matches.free.is_empty() {
 		println!("{}", getopts::usage(
-			format!("Dark compressor usage:\n{} [options] input_file[.dark]", *args.get(0)),
+			format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]),
 			options));
 		return
 	}

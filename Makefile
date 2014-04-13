@@ -62,9 +62,9 @@ etc/callgrind/dark.out: bin/profile
 	rm test.large.dark
 
 
-pack: bin/dark
+pack-dark: bin/dark
 	bin/dark -m dark data/book1
 	ls -l book1.dark
-	bin/dark book1.dark
+	bin/dark -m dark book1.dark
 	cmp data/book1 book1.orig
 	rm book1.*

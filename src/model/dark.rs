@@ -165,10 +165,10 @@ impl super::DistanceModel for Model {
 		self.last_log_token = 1;
 	}
 
-	fn encode<W: io::Writer>(&mut self, mut dist: super::Distance, sym: super::Symbol, eh: &mut ari::Encoder<W>) {
+	fn encode<W: io::Writer>(&mut self, mut dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		dist += 1;
 		let log = Model::int_log(dist);
-		let context = self.contexts.get_mut(sym as uint);
+		let context = self.contexts.get_mut(ctx.symbol as uint);
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
 		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		// write exponent
@@ -177,7 +177,7 @@ impl super::DistanceModel for Model {
 			let log_capped = cmp::min(log, MAX_LOG_CODE)-1;
 			let global_freq = self.freq_log.get_mut(avg_log_capped).get_mut(self.last_log_token);
 			debug!("Dark encoding log {} with context[{}][{}] of sym {}",
-				log_capped, avg_log_capped, self.last_log_token, sym);
+				log_capped, avg_log_capped, self.last_log_token, ctx.symbol);
 			eh.encode(log_capped, &ari::TableSumProxy::new(1,sym_freq, 2,global_freq, 0)).unwrap();
 			sym_freq.update(log_capped, self.update_log_power, self.update_log_add);
 			global_freq.update(log_capped, self.update_log_global, self.update_log_add);
@@ -217,8 +217,8 @@ impl super::DistanceModel for Model {
 		context.update(dist-1, log_diff);
 	}
 
-	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
-		let context = self.contexts.get_mut(sym as uint);
+	fn decode<R: io::Reader>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
+		let context = self.contexts.get_mut(ctx.symbol as uint);
 		let avg_log = Model::int_log(context.avg_dist as super::Distance);
 		let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
 		// read exponent
@@ -228,7 +228,7 @@ impl super::DistanceModel for Model {
 			;
 			let log = dh.decode(&ari::TableSumProxy::new(1, sym_freq, 2, global_freq, 0)).unwrap();
 			debug!("Dark decoding log {} with context[{}][{}] of sym {}",
-				log, avg_log_capped, self.last_log_token, sym);
+				log, avg_log_capped, self.last_log_token, ctx.symbol);
 			sym_freq.update(log, self.update_log_power, self.update_log_add);
 			global_freq.update(log, self.update_log_global, self.update_log_add);
 			log+1

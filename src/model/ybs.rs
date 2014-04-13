@@ -79,7 +79,7 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn encode<W: io::Writer>(&mut self, dist: super::Distance, sym: super::Symbol, eh: &mut ari::Encoder<W>) {
+	fn encode<W: io::Writer>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		fn int_log(d: super::Distance) -> uint {
 			let mut log = 0;
 			while d>>log !=0 {log += 1;}
@@ -87,7 +87,7 @@ impl super::DistanceModel for Model {
 		}
 		let max_low_log = self.table_log.len()-1;
 		let log = int_log(dist);
-		let context = &mut self.contexts[sym as uint];
+		let context = &mut self.contexts[ctx.symbol as uint];
 		let con_log = cmp::min(context.avg_log, max_low_log);
 		let freq_log = self.table_log.get_mut(con_log);
 		// write exponent
@@ -115,9 +115,9 @@ impl super::DistanceModel for Model {
 		}
 	}
 
-	fn decode<R: io::Reader>(&mut self, sym: super::Symbol, dh: &mut ari::Decoder<R>) -> super::Distance {
+	fn decode<R: io::Reader>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let max_low_log = self.table_log.len()-1;
-		let context = &mut self.contexts[sym as uint];
+		let context = &mut self.contexts[ctx.symbol as uint];
 		let con_log = cmp::min(context.avg_log, max_low_log);
 		let freq_log = self.table_log.get_mut(con_log);
 		// read exponent

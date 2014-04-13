@@ -12,6 +12,10 @@ use model::{Distance, DistanceModel};
 use saca;
 
 
+static ctx_0: bwt::dc::Context = bwt::dc::Context {
+	symbol: 0, last_rank: 0, distance_limit: 0x101,
+};
+
 /// A basic block encoder
 pub struct Encoder<M> {
 	sac	: saca::Constructor,
@@ -55,39 +59,41 @@ impl<M: DistanceModel> Encoder<M> {
 		let suf = self.sac.reuse().mut_slice_to(block_size);
 		let mut dc_iter = bwt::dc::encode(output.as_slice(), suf, &mut self.mtf);
 		let mut eh = ari::Encoder::new(writer);
-		// encode init distances
-		let mut cur_active = true;
-		let mut i = 0u;
-		while i<0xFF {
-			let base = i;
-			if cur_active {
-				while i<0xFF && dc_iter.get_init()[i]<block_size {
-					i += 1;
+		{	// encode init distances
+			let mut cur_active = true;
+			let mut i = 0u;
+			while i<0xFF {
+				let base = i;
+				if cur_active {
+					while i<0xFF && dc_iter.get_init()[i]<block_size {
+						i += 1;
+					}
+					let num = (if base==0 {i} else {i-base-1}) as Distance;
+					debug!("Init fill num {}", num);
+					self.model.encode(num, &ctx_0, &mut eh);
+					for (sym,d) in dc_iter.get_init().iter().enumerate().skip(base).take(i-base) {
+						let ctx = bwt::dc::Context::new(sym as u8, 0, input.len());
+						self.model.encode(*d as Distance, &ctx, &mut eh);
+						debug!("Init {} for {}", *d, sym);
+					}
+					cur_active = false;
+				}else {
+					while {i+=1; i<0xFF && dc_iter.get_init()[i]==block_size} {}
+					let num = (i-base-1) as Distance;
+					debug!("Init empty num {}", num);
+					self.model.encode(num, &ctx_0, &mut eh);
+					cur_active = true;
 				}
-				let num = (if base==0 {i} else {i-base-1}) as Distance;
-				debug!("Init fill num {}", num);
-				self.model.encode(num, 0, &mut eh);
-				for (sym,d) in dc_iter.get_init().iter().enumerate().skip(base).take(i-base) {
-					self.model.encode(*d as Distance, sym as u8, &mut eh);
-					debug!("Init {} for {}", *d, sym);
-				}
-				cur_active = false;
-			}else {
-				while {i+=1; i<0xFF && dc_iter.get_init()[i]==block_size} {}
-				let num = (i-base-1) as Distance;
-				debug!("Init empty num {}", num);
-				self.model.encode(num, 0, &mut eh);
-				cur_active = true;
 			}
 		}
 		// encode distances
 		for (d,ctx) in dc_iter {
 			debug!("Distance {} for {}", d, ctx.symbol);
-			self.model.encode(d, ctx.symbol, &mut eh);
+			self.model.encode(d, &ctx, &mut eh);
 		}
 		// done
 		info!("Origin: {}", origin);
-		self.model.encode(origin as Distance, 0, &mut eh);
+		self.model.encode(origin as Distance, &ctx_0, &mut eh);
 		print_stats(&eh);
 		eh.finish()
 	}
@@ -120,31 +126,35 @@ impl<M: DistanceModel> Decoder<M> {
 		let mut dh = ari::Decoder::new(reader);
 		dh.start().unwrap();
 		// decode init distances
-		let mut init = [self.input.len(), ..0x100];
-		let mut cur_active = true;
-		let mut i = 0u;
-		while i<0xFF {
-			let add  = if i==0 && cur_active {0u} else {1u};
-			let num = model.decode(0, &mut dh) as uint + add;
-			debug!("Init num {}", num);
-			if cur_active {
-				for (sym,d) in init.mut_iter().enumerate().skip(i).take(num)	{
-					*d = model.decode(sym as u8, &mut dh) as uint;
-					debug!("Init {} for {}", *d, sym);
+		let init = {
+			let mut init = [self.input.len(), ..0x100];
+			let mut cur_active = true;
+			let mut i = 0u;
+			while i<0xFF {
+				let add  = if i==0 && cur_active {0u} else {1u};
+				let num = model.decode(&ctx_0, &mut dh) as uint + add;
+				debug!("Init num {}", num);
+				if cur_active {
+					for (sym,d) in init.mut_iter().enumerate().skip(i).take(num)	{
+						let ctx = bwt::dc::Context::new(sym as u8, 0, self.input.len());
+						*d = model.decode(&ctx, &mut dh) as uint;
+						debug!("Init {} for {}", *d, sym);
+					}
+					cur_active = false;
+				}else {
+					cur_active = true;
 				}
-				cur_active = false;
-			}else {
-				cur_active = true;
+				i += num;
 			}
-			i += num;
-		}
+			init
+		};
 		// decode distances
 		bwt::dc::decode(init, self.input.as_mut_slice(), &mut self.mtf, |ctx| {
-			let d = model.decode(ctx.symbol, &mut dh);
+			let d = model.decode(&ctx, &mut dh);
 			debug!("Distance {} for {}", d, ctx.symbol);
 			Ok(d as uint)
 		}).unwrap();
-		let origin = model.decode(0, &mut dh) as uint;
+		let origin = model.decode(&ctx_0, &mut dh) as uint;
 		info!("Origin: {}", origin);
 		// undo BWT and write output
 		for b in bwt::decode(self.input.as_slice(), origin, self.suffixes.as_mut_slice()) {
