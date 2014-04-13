@@ -50,8 +50,10 @@ impl DistanceModel for RawOut {
 
 	fn encode<W: Writer>(&mut self, d: Distance, c: &Context, _enc: &mut ari::Encoder<W>) {
 		debug!("Encoding raw distance {} for symbol {}", d, c.symbol);
-		self.out.write_u8(c.symbol).unwrap();
-		self.out.write_le_u32(d).unwrap();
+		self.out.write_le_u32(d).and(
+			self.out.write_u8(c.symbol)).and(
+			self.out.write_u8(c.last_rank)).and(
+			self.out.write_le_u32(c.distance_limit as u32)).unwrap();
 	}
 
 	fn decode<R: Reader>(&mut self, _c: &Context, _dec: &mut ari::Decoder<R>) -> Distance {

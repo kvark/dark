@@ -170,7 +170,7 @@ impl<M: DistanceModel> Decoder<M> {
 pub mod test {
 	use std::io;
 	use std::vec::Vec;
-	use test;
+	use test::Bencher;
 	use super::super::model::{DistanceModel, exp, ybs};
 
 	fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
@@ -190,7 +190,7 @@ pub mod test {
 	}
 
 	#[bench]
-	fn encode_speed(bh: &mut test::BenchHarness) {
+	fn encode_speed(bh: &mut Bencher) {
 		let input = include_bin!("../lib/compress/data/test.txt");
 		let mut buffer = Vec::from_elem(input.len(), 0u8);
 		let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
@@ -202,7 +202,7 @@ pub mod test {
 	}
 
 	#[bench]
-	fn decode_speed(bh: &mut test::BenchHarness) {
+	fn decode_speed(bh: &mut Bencher) {
 		let input = include_bin!("../lib/compress/data/test.txt");
 		let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
 		encoder.model.reset();

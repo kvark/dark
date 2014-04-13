@@ -371,7 +371,7 @@ impl Constructor {
 #[cfg(test)]
 pub mod test {
 	use std::vec::Vec;
-	use test;
+	use test::Bencher;
 	use compress::bwt;
 
 	fn some_detail(input: &[super::Symbol], suf_expected: &[super::Suffix], origin_expected: uint, out_expected: &[super::Symbol]) {
@@ -417,7 +417,7 @@ pub mod test {
 	}
 
     #[bench]
-    fn speed(bh: &mut test::BenchHarness) {
+    fn speed(bh: &mut Bencher) {
         let input = include_bin!("../LICENSE");
         let mut con = super::Constructor::new(input.len());
         bh.iter(|| {
