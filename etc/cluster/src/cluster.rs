@@ -1,6 +1,5 @@
 #![crate_id = "cluster"]
 #![crate_type = "bin"]
-#![deny(warnings, missing_doc)]
 
 //! Cluster analysis tool for DC model raw dump
 
@@ -28,7 +27,7 @@ impl Value {
 		(self.dist_log - other.dist_log).abs() +
 		(if self.symbol == other.symbol {0f32} else {1f32}) +
 		(if self.rank_avg == other.rank_avg {0f32} else {0.4f32}) +
-		(self.dist_lim_log - other.dist_lim_log).abs() * 0.2f32 + 
+		(self.dist_lim_log - other.dist_lim_log).abs() * 0.2f32 +
 		(self.dist_log_avg - other.dist_log_avg).abs()
 	}
 
@@ -144,38 +143,19 @@ impl ReadContext {
 	}
 }
 
-
-
-fn main() {
-	println!("Cluster analysis tool for Dark context research");
-	let args = std::os::args();
-	assert!(args.len() > 1);
-	let mut input = std::io::BufferedReader::new(
-		std::io::File::open(&std::path::Path::new(
-			args[1].clone()
-			 )));
-	let dump_numbers: ~[uint] = args.slice_from(2).iter().map(|s| from_str(*s).unwrap()).collect();
-	let mut dump_id = 0u;
-	let mut elements: Vec<Element> = Vec::new();
-	// read stuff
-	let mut rcon = ReadContext::new();
-	loop {
-		match rcon.read(&mut input) {
-			Ok(value)	=> {
-				let sqr = value.sqr();
-				elements.push(Element {
-					m0	: 1,
-					m1	: value.clone(),
-					m2	: sqr,
-					active	: value,
-				});
-			},
-			Err(_e)	=> break,
+fn process_brute(values: Vec<Value>, dump_numbers: ~[uint]) {
+	let mut elements: Vec<Element> = values.iter().map(|v| {
+		let sqr = v.sqr();
+		Element {
+			m0	: 1,
+			m1	: v.clone(),
+			m2	: sqr,
+			active	: v.clone(),
 		}
-	}
-	println!("Got {} elements from {}", elements.len(), args[1]);
-	// process
+	}).collect();
+	let mut dump_id = 0u;
 	while elements.len()>1 {
+		println!("Starting {}", elements.len());
 		let mut best_id = (0u,0u);
 		let mut best_diff = 100000000f32;
 		for i in range(0,elements.len()-1) {
@@ -215,6 +195,182 @@ fn main() {
 					)).unwrap();
 			}
 		}
+	}
+}
+
+
+#[deriving(Clone)]
+struct ContextRef {
+	symbol: uint,
+	rank: uint,
+}
+
+static rank_limits: [uint,..9] = [1u,2u,4u,8u,16u,32u,64u,128u,256u];
+
+impl ContextRef {
+	fn get_limit() -> uint {
+		rank_limits.len() << 8
+	}
+	fn new(v: &Value) -> ContextRef {
+		ContextRef {
+			symbol: v.symbol as uint,
+			rank: rank_limits.iter().position(|&rl| v.last_rank<rl).unwrap(),
+		}
+	}
+	fn encode(&self) -> uint {
+		(self.symbol) + (self.rank<<8)
+	}
+	fn decode(id: uint) -> ContextRef {
+		ContextRef {
+			symbol: id & 0xFF,
+			rank: id>>8,
+		}
+	}
+}
+
+#[deriving(Clone)]
+struct DistSet {
+	m0: f32,
+	m1: f32,
+	m2: f32,
+	avg: f32,
+}
+
+impl DistSet {
+	fn new(v: &Value) -> DistSet {
+		let x = (v.dist_log + 1.0).ln();
+		DistSet {
+			m0: 1.0,
+			m1: x,
+			m2: x*x,
+			avg: x,
+		}
+	}
+	fn add_self(&mut self, other: &DistSet) {
+		self.m0 += other.m0;
+		self.m1 += other.m1;
+		self.m2 += other.m2;
+		self.avg = self.m1 / self.m0;
+	}
+	fn get_variance(&self) -> f32 {
+		self.m2 / self.m0 - self.avg*self.avg
+	}
+	fn get_distance(&self, other: &DistSet) -> f32 {
+		let d1 = self.avg - other.avg;
+		let d2 = self.get_variance() - other.get_variance();
+		d1*d1 + d2*d2
+	}
+}
+
+struct Group {
+	dist	: DistSet,
+	cells	: Vec<ContextRef>,
+}
+
+impl Group {
+	fn consume(&mut self, other: Group) {
+		self.dist.add_self(&other.dist);
+		self.cells.push_all(other.cells.as_slice());
+	}
+}
+
+fn process_cell(values: Vec<Value>, dump_numbers: ~[uint]) {
+	// populate groups
+	let mut dset: Vec<DistSet> = Vec::from_fn(ContextRef::get_limit(), |_|
+		DistSet{ m0:0.0, m1:0.0, m2:0.0, avg:0.0 });
+	for v in values.iter() {
+		let id = ContextRef::new(v).encode();
+		dset.get_mut(id).add_self(&DistSet::new(v));
+	}
+	let mut dump_id = 0u;
+	let mut groups: Vec<Group> = dset.iter().enumerate().filter(|&(_,dv)| {
+		dv.m0 > 0.0
+	}).map(|(i,dv)| {
+		Group {
+			dist: dv.clone(),
+			cells: Vec::from_fn(1, |_| ContextRef::decode(i)),
+		}
+	}).collect();
+	// merge iteratively
+	println!("Base {}/{} groups", groups.len(), ContextRef::get_limit());
+	while groups.len() > 1 {
+		let mut best_id = (0u,0u);
+		let mut best_diff = 100000000f32;
+
+		for i in range(0,groups.len()-1) {
+			let ga = groups.get(i);
+			for j in range(i+1,groups.len()) {
+				let gb = groups.get(j);
+				let diff = ga.dist.get_distance(&gb.dist);
+				if diff < best_diff {
+					best_diff = diff;
+					best_id = (i,j);
+				}
+			}
+		}
+		{
+			let (i,j) = best_id;
+			let removed = groups.remove(j).unwrap();
+			groups.get_mut(i).consume(removed);
+		}
+		if dump_id<dump_numbers.len() && dump_numbers[dump_id] == groups.len() {
+			dump_id += 1;
+			groups.sort_by(|a,b| {
+				if b.dist.m0 < a.dist.m0 {Less} else if b.dist.m0 > a.dist.m0 {Greater} else {Equal}
+			});
+			println!("Dumping at {}", groups.len());
+			let path = std::path::Path::new(format!("dump-{}.txt", groups.len()));
+			let mut out = io::BufferedWriter::new(io::File::create(&path));
+			for g in groups.iter() {
+				out.write_str(format!(
+					"Group of {} ({})\n\tDistLog: {}\t({})\n",
+					g.cells.len(), g.dist.m0, g.dist.avg, g.dist.get_variance()
+					)).unwrap();
+			}
+		}
+	}
+}
+
+
+fn process_print(values: Vec<Value>) {
+	let mut output = std::io::BufferedWriter::new(
+		std::io::File::create(&std::path::Path::new("dump.csv"))
+		);
+	for v in values.iter() {
+		let s = format!("{}, {}, {}, {}\n", v.distance,
+			v.symbol, v.last_rank, v.dist_limit);
+		output.write_str(s).unwrap();
+	}
+}
+
+
+fn main() {
+	println!("Cluster analysis tool for Dark context research");
+	let args = std::os::args();
+	assert!(args.len() > 1);
+	let mut input = std::io::BufferedReader::new(
+		std::io::File::open(&std::path::Path::new(
+			args[1].clone()
+			 )));
+	let dump_numbers: ~[uint] = args.slice_from(2).iter().map(|s| from_str(*s).unwrap()).collect();
+	let mut values: Vec<Value> = Vec::new();
+	// read stuff
+	let mut rcon = ReadContext::new();
+	loop {
+		let v = match rcon.read(&mut input) {
+			Ok(v)	=> v,
+			Err(_e)	=> break,
+		};
+		values.push(v);
+	}
+
+	println!("Got {} values from {}", values.len(), args[1]);
+	if false {
+		process_brute(values, dump_numbers);
+	}else if true {
+		process_cell(values, dump_numbers);
+	}else {
+		process_print(values);
 	}
 	println!("Done.");
 }
