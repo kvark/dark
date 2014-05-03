@@ -8,32 +8,47 @@ use super::Value;
 
 #[deriving(Clone)]
 struct ContextRef {
-	symbol: uint,
-	rank: uint,
+	symbol	: uint,
+	rank	: uint,
+	avg_dist: uint,
 }
 
-static rank_limits: [uint,..9] = [1u,2u,4u,8u,16u,32u,64u,128u,256u];
+static rank_limits: [uint,..10] = [0, 1, 2, 4, 8, 16, 32, 64, 128, 25];
+static dist_limits: [f32,..9] = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0];
 
 impl ContextRef {
 	fn get_limit() -> uint {
-		rank_limits.len() << 8
+		dist_limits.len() * rank_limits.len() << 8
 	}
 	fn new(v: &Value) -> ContextRef {
+		let dlog = (v.dist_log+1.0).ln();
 		ContextRef {
-			symbol: v.symbol as uint,
-			rank: rank_limits.iter().position(|&rl| v.last_rank<rl).unwrap(),
+			symbol	: v.symbol as uint,
+			rank	: rank_limits.iter().position(|&rl| v.last_rank<rl).unwrap(),
+			avg_dist: dist_limits.iter().position(|&dl| dlog<dl).unwrap(),
 		}
 	}
 	fn encode(&self) -> uint {
-		(self.symbol) + (self.rank<<8)
+		(self.symbol) + (self.rank<<8) + (self.avg_dist<<8)*rank_limits.len()
 	}
 	fn decode(id: uint) -> ContextRef {
 		ContextRef {
-			symbol: id & 0xFF,
-			rank: id>>8,
+			symbol	: id & 0xFF,
+			rank	: (id>>8)%rank_limits.len(),
+			avg_dist: (id>>8)/rank_limits.len()
 		}
 	}
 }
+
+impl std::fmt::Show for ContextRef {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f.buf, "Context(sym:{}, rank:{}-{}, dist:{}-{})",
+			self.symbol, rank_limits[self.rank], rank_limits[self.rank+1],
+			dist_limits[self.avg_dist].exp(),
+			dist_limits[self.avg_dist+1].exp())
+	}
+}
+
 
 #[deriving(Clone)]
 struct DistSet {
@@ -134,6 +149,9 @@ pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
 					"Group of {} ({})\n\tDistLog: {}\t({})\n",
 					g.cells.len(), g.dist.m0, g.dist.avg, g.dist.get_variance()
 					)).unwrap();
+				for cl in g.cells.iter() {
+					out.write_str(format!("\t{}\n", *cl)).unwrap();
+				}
 			}
 		}
 	}

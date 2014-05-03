@@ -8,6 +8,7 @@ use std::vec::Vec;
 
 mod brute;
 mod cell;
+mod stat;
 
 
 #[deriving(Clone)]
@@ -99,8 +100,10 @@ fn main() {
 	println!("Got {} values from {}", values.len(), args[1]);
 	if false {
 		brute::process(values, dump_numbers);
-	}else if true {
+	}else if false {
 		cell::process(values, dump_numbers);
+	}else if true {
+		stat::process(values);
 	}else {
 		process_print(values);
 	}
