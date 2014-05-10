@@ -50,7 +50,8 @@ impl ReadContext {
 		let rank = try!(rd.read_u8());
 		let lim = try!(rd.read_le_u32());
 		self.rank_avg = (3*self.rank_avg + rank)>>2;
-		self.dist_log_avg = (2.0*self.dist_log_avg + d_log) / 3.0;
+		let d_log_avg = self.dist_log_avg;
+		self.dist_log_avg = (2.0*d_log_avg + d_log) / 3.0;
 		Ok(Value{
 			distance	: d as uint,
 			dist_log	: d_log,
@@ -59,7 +60,7 @@ impl ReadContext {
 			dist_limit	: lim as uint,
 			rank_avg	: self.rank_avg as uint,
 			dist_lim_log: ReadContext::get_log(lim),
-			dist_log_avg: self.dist_log_avg,
+			dist_log_avg: d_log_avg,
 		})
 	}
 }
@@ -85,7 +86,6 @@ fn main() {
 		std::io::File::open(&std::path::Path::new(
 			args[1].clone()
 			 )));
-	let dump_numbers: ~[uint] = args.slice_from(2).iter().map(|s| from_str(*s).unwrap()).collect();
 	let mut values: Vec<Value> = Vec::new();
 	// read stuff
 	let mut rcon = ReadContext::new();
@@ -98,14 +98,12 @@ fn main() {
 	}
 
 	println!("Got {} values from {}", values.len(), args[1]);
-	if false {
-		brute::process(values, dump_numbers);
-	}else if false {
-		cell::process(values, dump_numbers);
-	}else if true {
-		stat::process(values);
-	}else {
-		process_print(values);
+	match args[2].as_slice() {
+		"brute"	=> brute::process(values, args.slice_from(3)),
+		"cell"	=> cell::process(values, args.slice_from(3)),
+		"stat"	=> stat::process(values),
+		"dump"	=> process_print(values),
+		_		=> fail!("Unknown method: {}", args[2])
 	}
 	println!("Done.");
 }

@@ -13,8 +13,9 @@ struct ContextRef {
 	avg_dist: uint,
 }
 
-static rank_limits: [uint,..10] = [0, 1, 2, 4, 8, 16, 32, 64, 128, 25];
-static dist_limits: [f32,..9] = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0];
+static rank_limits: [uint,..4] = [0, 4, 16, 256];
+static dist_limits: [f32,..14] = [0.0, 0.5, 0.75, 1.0, 1.25, 1.5,
+	1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.5, 4.0];
 
 impl ContextRef {
 	fn get_limit() -> uint {
@@ -31,6 +32,10 @@ impl ContextRef {
 	fn encode(&self) -> uint {
 		(self.symbol) + (self.rank<<8) + (self.avg_dist<<8)*rank_limits.len()
 	}
+	fn rev_encode(&self) -> uint {
+		(self.avg_dist) + (self.rank * dist_limits.len()) +
+			(self.symbol * dist_limits.len() * rank_limits.len())
+	}
 	fn decode(id: uint) -> ContextRef {
 		ContextRef {
 			symbol	: id & 0xFF,
@@ -42,10 +47,10 @@ impl ContextRef {
 
 impl std::fmt::Show for ContextRef {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f.buf, "Context(sym:{}, rank:{}-{}, dist:{}-{})",
-			self.symbol, rank_limits[self.rank], rank_limits[self.rank+1],
-			dist_limits[self.avg_dist].exp(),
-			dist_limits[self.avg_dist+1].exp())
+		write!(f.buf, "Context(sym:{},\trank:{}-{},\tdist:{:.2}-{:.2})",
+			self.symbol, rank_limits[self.rank-1], rank_limits[self.rank],
+			dist_limits[self.avg_dist-1].exp()-1.0,
+			dist_limits[self.avg_dist].exp()-1.0)
 	}
 }
 
@@ -97,7 +102,8 @@ impl Group {
 }
 
 
-pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
+pub fn process(values: Vec<Value>, args: &[~str]) {
+	let threshold: f32 = from_str(args[0]).unwrap();
 	// populate groups
 	let mut dset: Vec<DistSet> = Vec::from_fn(ContextRef::get_limit(), |_|
 		DistSet{ m0:0.0, m1:0.0, m2:0.0, avg:0.0 });
@@ -105,8 +111,7 @@ pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
 		let id = ContextRef::new(v).encode();
 		dset.get_mut(id).add_self(&DistSet::new(v));
 	}
-	let mut dump_id = 0u;
-	let mut groups: Vec<Group> = dset.iter().enumerate().filter(|&(_,dv)| {
+	let groups_raw: Vec<Group> = dset.iter().enumerate().filter(|&(_,dv)| {
 		dv.m0 > 0.0
 	}).map(|(i,dv)| {
 		Group {
@@ -114,6 +119,16 @@ pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
 			cells: Vec::from_fn(1, |_| ContextRef::decode(i)),
 		}
 	}).collect();
+	let (mut groups, mut gzero) = groups_raw.partition(|g| g.dist.m1!=0.0);
+	match gzero.shift() {
+		Some(mut zero) => {
+			for g in gzero.move_iter() {
+				zero.consume(g);
+			}
+			groups.push(zero);
+		},
+		None	=> ()
+	}
 	// merge iteratively
 	println!("Base {}/{} groups", groups.len(), ContextRef::get_limit());
 	while groups.len() > 1 {
@@ -131,27 +146,31 @@ pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
 				}
 			}
 		}
-		{
-			let (i,j) = best_id;
-			let removed = groups.remove(j).unwrap();
-			groups.get_mut(i).consume(removed);
+		if best_diff > threshold {
+			break
 		}
-		if dump_id<dump_numbers.len() && dump_numbers[dump_id] == groups.len() {
-			dump_id += 1;
-			groups.sort_by(|a,b| {
-				if b.dist.m0 < a.dist.m0 {Less} else if b.dist.m0 > a.dist.m0 {Greater} else {Equal}
-			});
-			println!("Dumping at {}", groups.len());
-			let path = std::path::Path::new(format!("dump-{}.txt", groups.len()));
-			let mut out = std::io::BufferedWriter::new(std::io::File::create(&path));
-			for g in groups.iter() {
-				out.write_str(format!(
-					"Group of {} ({})\n\tDistLog: {}\t({})\n",
-					g.cells.len(), g.dist.m0, g.dist.avg, g.dist.get_variance()
-					)).unwrap();
-				for cl in g.cells.iter() {
-					out.write_str(format!("\t{}\n", *cl)).unwrap();
-				}
+		let (i,j) = best_id;
+		let removed = groups.remove(j).unwrap();
+		groups.get_mut(i).consume(removed);
+	}
+	{	//dump
+		groups.sort_by(|a,b| {
+			if b.dist.m0 < a.dist.m0 {Less} else if b.dist.m0 > a.dist.m0 {Greater} else {Equal}
+		});
+		println!("Dumping at {}", groups.len());
+		let path = std::path::Path::new(format!("dump-{}.txt", groups.len()));
+		let mut out = std::io::BufferedWriter::new(std::io::File::create(&path));
+		for g in groups.mut_iter() {
+			g.cells.sort_by(|a,b| a.rev_encode().cmp(&b.rev_encode()));
+		}
+		for g in groups.iter() {
+			out.write_str(format!(
+				"Group of {} ({})\n\tDistLog: {}\t(mean {}, var {})\n",
+				g.cells.len(), g.dist.m0,
+				g.dist.avg.exp()-1.0, g.dist.avg, g.dist.get_variance()
+				)).unwrap();
+			for cl in g.cells.iter() {
+				out.write_str(format!("\t{}\n", *cl)).unwrap();
 			}
 		}
 	}

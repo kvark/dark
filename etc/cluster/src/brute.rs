@@ -89,7 +89,8 @@ impl Element {
 }
 
 
-pub fn process(values: Vec<Value>, dump_numbers: ~[uint]) {
+pub fn process(values: Vec<Value>, args: &[~str]) {
+	let dump_numbers: ~[uint] = args.iter().map(|s| from_str(*s).unwrap()).collect();
 	let mut elements: Vec<Element> = values.iter().map(|v| {
 		let sqr = v.sqr();
 		Element {
