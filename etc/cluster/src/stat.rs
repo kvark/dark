@@ -24,10 +24,31 @@ fn correlate<'a, F: Float,
 	let (num,mu1,mu2) = variate(u.clone());
 	let (_,  mv1,mv2) = variate(v.clone());
 	let zero: F = Zero::zero();
-	let x = u.zip(v).fold(zero, |x,(&a,&b)| {
-		x + (a-mu1)*(b-mv1)
+	let uv = u.zip(v).fold(zero, |uv,(&a,&b)| {
+		uv + (a-mu1)*(b-mv1)
 	});
-	x / (num*mu2*mv2)
+	uv / (num*mu2*mv2)
+}
+
+fn correlate_roll<'a, F: Float,
+		U: Iterator<&'a F>,
+		V: Iterator<&'a F>
+		>(u: U, v: V, adapt: F) -> F {
+	let (zero,one): (F,F) = (Zero::zero(), One::one());
+	let (_, _, _, uu, vv, uv) = u.zip(v).fold(
+		(zero,zero,zero,zero,zero,zero), |(c,u1,v1,uu,vv,uv),(&a,&b)| {
+		let (du,dv) = (a-u1, b-v1);
+		(c+one, u1+adapt*du, v1+adapt*dv, uu+du*du, vv+dv*dv, uv+du*dv)
+	});
+	//count*uv / (uu*vv)
+	(one+one)*uv / (uu+vv)
+}
+
+fn correlate_both<'a, F: Float,
+		U: Clone + Iterator<&'a F>,
+		V: Clone + Iterator<&'a F>
+		>(u: U, v: V, adapt: F) -> (F,F) {
+	(correlate(u.clone(), v.clone()), correlate_roll(u,v,adapt))
 }
 
 
@@ -39,39 +60,37 @@ pub fn process(values: Vec<Value>) {
 		let (_,mean,var) = variate(distances.iter());
 		println!("\tMean: {}, Variance: {}", mean, var);
 	}
+	let adapt = 0.25f32;
 	{
 		let mut avg = 0.5f32;
-		let weight = 0.3f32;
 		let predict: ~[f32] = distances.iter().map(|&d| {
 			let old = avg;
-			avg = weight*d + (1.0-weight)*avg;
+			avg = adapt*d + (1.0-adapt)*avg;
 			old
 		}).collect();
-		let corel = correlate(distances.iter(), predict.iter());
-		println!("\tCorrelation(dist, predict_global) = {}", corel);
+		let (ca,cb) = correlate_both(distances.iter(), predict.iter(), adapt);
+		println!("\tCorrelation(dist, predict_global) = {}\t| {}", ca, cb);
 	}
 	{
 		let mut avg = Vec::from_elem(0x100, 0.5f32);
-		let weight = 0.3f32;
 		let predict: ~[f32] = distances.iter().zip(values.iter()).map(|(&d,v)| {
 			let v = avg.get_mut(v.symbol);
 			let old = *v;
-			*v = weight*d + (1.0-weight)*(*v);
+			*v = adapt*d + (1.0-adapt)*(*v);
 			old
 		}).collect();
-		let corel = correlate(distances.iter(), predict.iter());
-		println!("\tCorrelation(dist, predict_symbol) = {}", corel);
+		let (ca,cb) = correlate_both(distances.iter(), predict.iter(), adapt);
+		println!("\tCorrelation(dist, predict_symbol) = {}\t| {}", ca, cb);
 	}
 	{
 		let mut avg = Vec::from_elem(0x100, 0.5f32);
-		let weight = 0.3f32;
 		let predict: ~[f32] = distances.iter().zip(values.iter()).map(|(&d,v)| {
 			let v = avg.get_mut(v.last_rank);
 			let old = *v;
-			*v = weight*d + (1.0-weight)*(*v);
+			*v = adapt*d + (1.0-adapt)*(*v);
 			old
 		}).collect();
-		let corel = correlate(distances.iter(), predict.iter());
-		println!("\tCorrelation(dist, predict_rank) = {}", corel);
+		let (ca,cb) = correlate_both(distances.iter(), predict.iter(), adapt);
+		println!("\tCorrelation(dist, predict_rank) = {}\t| {}", ca, cb);
 	}
 }
