@@ -40,9 +40,9 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	table_log	: Vec<ari::FrequencyTable>,
-	table_high	: ari::FrequencyTable,
-	bin_rest	: [ari::BinaryModel, ..3],
+	table_log	: Vec<ari::table::Model>,
+	table_high	: ari::table::Model,
+	bin_rest	: [ari::bin::Model, ..3],
 	/// specific context tracking
 	contexts	: [SymbolContext, ..0x100],
 }
@@ -52,9 +52,9 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let low_logs = 12u;
 		Model {
-			table_log	: Vec::from_fn(low_logs, |_| ari::FrequencyTable::new_flat(low_logs+1, threshold)),
-			table_high	: ari::FrequencyTable::new_flat(32-low_logs, threshold),
-			bin_rest	: [ari::BinaryModel::new_flat(threshold), ..3],
+			table_log	: Vec::from_fn(low_logs, |_| ari::table::Model::new_flat(low_logs+1, threshold)),
+			table_high	: ari::table::Model::new_flat(32-low_logs, threshold),
+			bin_rest	: [ari::bin::Model::new_flat(threshold), ..3],
 			contexts	: [SymbolContext::new(), ..0x100],
 		}
 	}

@@ -24,7 +24,7 @@ impl ari::Model for Raw {
 
 /// A simple DC model, coding up to 0xFF distances as-is, and with following 3 bytes otherwise
 pub struct Model {
-	freq: Vec<ari::FrequencyTable>,
+	freq: Vec<ari::table::Model>,
 	up	: [uint, ..4],
 }
 
@@ -32,7 +32,7 @@ impl super::DistanceModel for Model {
 	fn new_default() -> Model {
 		let threshold = ari::range_default_threshold >> 2;
 		Model {
-			freq: Vec::from_fn(4, |_| ari::FrequencyTable::new_flat(0x100, threshold)),
+			freq: Vec::from_fn(4, |_| ari::table::Model::new_flat(0x100, threshold)),
 			up	: [10,8,7,6],
 		}
 	}

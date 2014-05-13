@@ -13,7 +13,7 @@ clean:
 	rm ${LIB_PATH} bin/*
 
 
-${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/*.rs
+${LIB_PATH}: ${LIB_DIR}/*.rs ${LIB_DIR}/entropy/ari/*.rs
 	cd lib && rustc -O -g ${TUNE} compress/lib.rs
 
 test-lib: ${LIB_PATH}
@@ -29,7 +29,7 @@ bin/debug: bin/dark
 
 bin/test: bin/dark
 	rustc -O -L lib --test -o bin/test src/main.rs
-	
+
 bin/bench: bin/dark
 	rustc -O -L lib --test -o bin/bench src/main.rs
 

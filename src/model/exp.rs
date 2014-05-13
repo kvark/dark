@@ -10,9 +10,9 @@ use compress::entropy::ari;
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	bin_zero	: ari::BinaryModel,
-	table_log	: ari::FrequencyTable,
-	bin_rest	: [ari::BinaryModel, ..4],
+	bin_zero	: ari::bin::Model,
+	table_log	: ari::table::Model,
+	bin_rest	: [ari::bin::Model, ..4],
 }
 
 impl Model {
@@ -20,11 +20,11 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let num_logs = 24;
 		Model {
-			bin_zero	: ari::BinaryModel::new_flat(threshold),
-			table_log	: ari::FrequencyTable::new_custom(num_logs, threshold, |i| {
+			bin_zero	: ari::bin::Model::new_flat(threshold),
+			table_log	: ari::table::Model::new_custom(num_logs, threshold, |i| {
 				1<<(10 - cmp::min(10,i))
 			}),
-			bin_rest	: [ari::BinaryModel::new_flat(threshold), ..4],
+			bin_rest	: [ari::bin::Model::new_flat(threshold), ..4],
 		}
 	}
 }

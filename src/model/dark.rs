@@ -46,13 +46,13 @@ static ADAPT_POWERS: [int, ..9] = [6,5,4,3,2,1,4,6,4];
 
 
 struct BinaryMultiplex {
-	pub freqs: [ari::BinaryModel, ..32],
+	pub freqs: [ari::bin::Model, ..32],
 }
 
 impl BinaryMultiplex {
 	fn new(threshold: ari::Border) -> BinaryMultiplex {
 		BinaryMultiplex {
-			freqs: [ari::BinaryModel::new_flat(threshold), ..32],
+			freqs: [ari::bin::Model::new_flat(threshold), ..32],
 		}
 	}
 	fn reset(&mut self) {
@@ -65,7 +65,7 @@ impl BinaryMultiplex {
 
 struct SymbolContext {
 	pub avg_dist	: int,
-	pub freq_log	: ari::FrequencyTable,
+	pub freq_log	: ari::table::Model,
 	pub freq_extra	: BinaryMultiplex,
 }
 
@@ -73,7 +73,7 @@ impl SymbolContext {
 	fn new(threshold: ari::Border) -> SymbolContext {
 		SymbolContext{
 			avg_dist	: 1000,
-			freq_log	: ari::FrequencyTable::new_flat(MAX_LOG_CODE, threshold),
+			freq_log	: ari::table::Model::new_flat(MAX_LOG_CODE, threshold),
 			freq_extra	: BinaryMultiplex::new(threshold),
 		}
 	}
@@ -97,9 +97,9 @@ impl SymbolContext {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	freq_log		: Vec<Vec<ari::FrequencyTable>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
+	freq_log		: Vec<Vec<ari::table::Model>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
 	freq_log_bits	: [BinaryMultiplex, ..2],
-	freq_mantissa	: [[ari::BinaryModel, ..MAX_BIT_CONTEXT+1], ..32],
+	freq_mantissa	: [[ari::bin::Model, ..MAX_BIT_CONTEXT+1], ..32],
 	/// specific context tracking
 	contexts		: Vec<SymbolContext>,
 	last_log_token	: uint,
@@ -118,10 +118,10 @@ impl Model {
 		Model {
 			freq_log		: Vec::from_fn(MAX_LOG_CONTEXT+1, |_| {
 				Vec::from_fn(NUM_LAST_LOGS, |_|
-					ari::FrequencyTable::new_flat(MAX_LOG_CODE, threshold))
+					ari::table::Model::new_flat(MAX_LOG_CODE, threshold))
 			}),
 			freq_log_bits	: [BinaryMultiplex::new(threshold), ..2],
-			freq_mantissa	: [[ari::BinaryModel::new_flat(threshold), ..MAX_BIT_CONTEXT+1], ..32],
+			freq_mantissa	: [[ari::bin::Model::new_flat(threshold), ..MAX_BIT_CONTEXT+1], ..32],
 			contexts		: Vec::from_fn(0x100, |_| SymbolContext::new(threshold)),
 			last_log_token	: 1,
 			update_log_global		: 12,
@@ -178,7 +178,7 @@ impl super::DistanceModel for Model {
 			let global_freq = self.freq_log.get_mut(avg_log_capped).get_mut(self.last_log_token);
 			debug!("Dark encoding log {} with context[{}][{}] of sym {}",
 				log_capped, avg_log_capped, self.last_log_token, ctx.symbol);
-			eh.encode(log_capped, &ari::TableSumProxy::new(1,sym_freq, 2,global_freq, 0)).unwrap();
+			eh.encode(log_capped, &ari::table::SumProxy::new(1,sym_freq, 2,global_freq, 0)).unwrap();
 			sym_freq.update(log_capped, self.update_log_power, self.update_log_add);
 			global_freq.update(log_capped, self.update_log_global, self.update_log_add);
 		}
@@ -187,14 +187,14 @@ impl super::DistanceModel for Model {
 			for i in range(MAX_LOG_CODE, log) {
 				let bc = &mut context.freq_extra.freqs[i-MAX_LOG_CODE];
 				let fc = &mut freq_log_bits.freqs[i-MAX_LOG_CODE];
-				eh.encode(1, &ari::BinarySumProxy::new(1,bc, 1,fc, 1)).unwrap();
+				eh.encode(1, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
 				bc.update(1, self.update_bits_sym);
 				fc.update(1, self.update_bits_global);
 			}
 			let i = log-MAX_LOG_CODE;
 			let bc = &mut context.freq_extra.freqs[i];
 			let fc = &mut freq_log_bits.freqs[i];
-			eh.encode(0, &ari::BinarySumProxy::new(1,bc, 1,fc, 1)).unwrap();
+			eh.encode(0, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
 			bc.update(0, self.update_bits_sym);
 			fc.update(0, self.update_bits_global);
 		}
@@ -226,7 +226,7 @@ impl super::DistanceModel for Model {
 			let sym_freq = &mut context.freq_log;
 			let global_freq = self.freq_log.get_mut(avg_log_capped).get_mut(self.last_log_token)
 			;
-			let log = dh.decode(&ari::TableSumProxy::new(1, sym_freq, 2, global_freq, 0)).unwrap();
+			let log = dh.decode(&ari::table::SumProxy::new(1, sym_freq, 2, global_freq, 0)).unwrap();
 			debug!("Dark decoding log {} with context[{}][{}] of sym {}",
 				log, avg_log_capped, self.last_log_token, ctx.symbol);
 			sym_freq.update(log, self.update_log_power, self.update_log_add);
@@ -239,7 +239,7 @@ impl super::DistanceModel for Model {
 			loop {
 				let bc = &mut context.freq_extra.freqs[count];
 				let fc = &mut freq_log_bits.freqs[count];
-				let bit = dh.decode(&ari::BinarySumProxy::new(1,bc, 1,fc, 1)).unwrap();
+				let bit = dh.decode(&ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
 				bc.update(bit, self.update_bits_sym);
 				fc.update(bit, self.update_bits_global);
 				if bit == 0 {break}

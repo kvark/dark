@@ -27,7 +27,7 @@ pub mod saca;
 
 /// Program entry point
 pub fn main() {
-	let extension = &".dark";
+	let extension = ".dark";
 	let options = [
 		getopts::optopt("m", "model", "set compression model", "dark|exp|raw|simple|ybs"),
 		//getopts::optopt("o", "output", "set output file name", "NAME"),
@@ -40,12 +40,12 @@ pub fn main() {
 	};
 	if matches.opt_present("h") || matches.free.is_empty() {
 		println!("{}", getopts::usage(
-			format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]),
+			format!("Dark compressor usage:\n{} [options] input_file[.dark]", *args.get(0)),
 			options));
 		return
 	}
 
-	let model = matches.opt_str("m").unwrap_or(~"exp");
+	let model = matches.opt_str("m").unwrap_or("exp".to_owned());
 	info!("Using model: {}", model);
 	let input_path = Path::new(matches.free.get(0).clone());
 	let file_name = input_path.filename_str().unwrap();

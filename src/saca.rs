@@ -60,7 +60,7 @@ fn get_buckets<T: ToPrimitive>(input: &[T], buckets: &mut [Suffix], end: bool) {
 fn put_substr<T: Eq + Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], buckets: &mut [Suffix]) {
 	// Find the end of each bucket.
 	get_buckets(input, buckets, true);
-	
+
 	// Set each item in SA as empty.
 	fill(suffixes, SUF_INVALID);
 
@@ -162,7 +162,7 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 	let mut dist = 0u;
 	let mut i = 0u;
 	while {i+=1; i<input.len() && input[i-1] <= input[i]} {}
-	
+
 	loop {
 		if i >= input.len()-0 || input[i-1] < input[i] {break}
 		if i == input.len()-1 || input[i-1] > input[i] {dist=i}
@@ -179,7 +179,7 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
  	// Scan to compute the interim s1.
 	let mut pre_pos = 0u;
 	let mut pre_len = 0u;
-	let mut name = -1u;
+	let mut name = 0u - 1u;
 	for suf in input_new.iter() {
 		let pos = *suf as uint;
 		let len = get_lms_length(input.slice_from(pos));
@@ -201,8 +201,8 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
 }
 
 fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) {
-	let mut iter = input_new.mut_rev_iter();
-	
+	let mut iter = input_new.mut_iter().rev();
+
 	let succ_t = input.iter().zip(input.slice_from(1).iter()).enumerate().rev().fold(false, |succ_t, (i,(prev,cur))| {
 		if *prev < *cur || (*prev == *cur && succ_t) {
 			true
@@ -220,7 +220,7 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
 		debug!("\tgather_lms: found first suffix");
 	}
 	assert!(iter.next().is_none());
-	
+
 	for suf in sa_new.mut_iter() {
 		*suf = input_new[*suf as uint];
 	}
@@ -280,7 +280,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 		debug!("Compacted LMS: {:?}", suffixes.slice_to(lms_count));
 		lms_count
 	};
-	
+
 	// Stage 2: solve the reduced problem.
 	{
 		assert!(n1+n1 <= input.len());
@@ -319,7 +319,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 			for (i,p) in suffixes.iter().enumerate() {
 				assert_eq!(suffixes.slice_to(i).iter().find(|suf| *suf==p), None);
 				assert!(i == 0 || input[suffixes[i-1] as uint] <= input[suffixes[i] as uint]);
-			}	
+			}
 		}
 	}
 }
@@ -380,7 +380,7 @@ pub mod test {
 			let suf = con.compute(input);
 			assert_eq!(suf.as_slice(), suf_expected);
 			let mut iter = bwt::TransformIterator::new(input, suf);
-			let out: ~[super::Symbol] = iter.collect();
+			let out: Vec<super::Symbol> = iter.collect();
 			(out, iter.get_origin())
 		};
 		assert_eq!(origin, origin_expected);
@@ -401,7 +401,7 @@ pub mod test {
 		let (output, origin) = {
 			let suf = con.compute(input);
 			let mut iter = bwt::TransformIterator::new(input, suf);
-			let out: ~[super::Symbol] = iter.collect();
+			let out: Vec<super::Symbol> = iter.collect();
 			(out, iter.get_origin())
 		};
 		let decoded: Vec<super::Symbol> =
