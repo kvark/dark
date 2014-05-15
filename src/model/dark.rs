@@ -15,21 +15,21 @@ use compress::entropy::ari;
 
 
 /// Aggregate frequency model of two sources
-pub struct Aggregate<'a,X,Y> {
+pub struct Aggregate<'a,F,X,Y> {
 	x: &'a X,
 	y: &'a Y,
 }
 
-impl<'a, X: ari::Model, Y: ari::Model>
-ari::Model for Aggregate<'a,X,Y> {
-	fn get_range(&self, value: ari::Value) -> (ari::Border,ari::Border) {
+impl<'a, F: Float, X: ari::Model<F>, Y: ari::Model<F>>
+ari::Model<F> for Aggregate<'a,F,X,Y> {
+	fn get_range(&self, value: F) -> (ari::Border,ari::Border) {
 		let (x1,x2) = self.x.get_range(value);
 		let (y1,y2) = self.y.get_range(value);
 		(x1+y1, x2+y2)
 	}
 
-	fn find_value(&self, _offset: ari::Border) -> (ari::Value,ari::Border,ari::Border) {
-		(0,0,0)	//TODO
+	fn find_value(&self, _offset: ari::Border) -> (F,ari::Border,ari::Border) {
+		(NumCast::from(0).unwrap(), 0,0)	//TODO
 	}
 
 	fn get_denominator(&self) -> ari::Border {
@@ -187,22 +187,22 @@ impl super::DistanceModel for Model {
 			for i in range(MAX_LOG_CODE, log) {
 				let bc = &mut context.freq_extra.freqs[i-MAX_LOG_CODE];
 				let fc = &mut freq_log_bits.freqs[i-MAX_LOG_CODE];
-				eh.encode(1, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
-				bc.update(1, self.update_bits_sym);
-				fc.update(1, self.update_bits_global);
+				eh.encode(true, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
+				bc.update(true, self.update_bits_sym);
+				fc.update(true, self.update_bits_global);
 			}
 			let i = log-MAX_LOG_CODE;
 			let bc = &mut context.freq_extra.freqs[i];
 			let fc = &mut freq_log_bits.freqs[i];
-			eh.encode(0, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
-			bc.update(0, self.update_bits_sym);
-			fc.update(0, self.update_bits_global);
+			eh.encode(false, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
+			bc.update(false, self.update_bits_sym);
+			fc.update(false, self.update_bits_global);
 		}
 		self.last_log_token = if log<2 {0} else if log<8 {1} else {2};
 		// write mantissa
 		let mantissa_context = &mut self.freq_mantissa[log];
 		for i in range(1,log) {
-			let bit = (dist>>(log-i-1)) as uint & 1;
+			let bit = (dist>>(log-i-1)) as uint & 1 != 0;
 			if i > MAX_BIT_CONTEXT {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, mantissa_context.last().unwrap()).unwrap();
@@ -242,7 +242,7 @@ impl super::DistanceModel for Model {
 				let bit = dh.decode(&ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
 				bc.update(bit, self.update_bits_sym);
 				fc.update(bit, self.update_bits_global);
-				if bit == 0 {break}
+				if !bit {break}
 				count += 1;
 			}
 			log_pre + count

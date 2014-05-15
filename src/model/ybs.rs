@@ -103,7 +103,7 @@ impl super::DistanceModel for Model {
 		}
 		// write mantissa
 		for i in range(1,log) {
-			let bit = (dist>>(log-i-1)) as uint & 1;
+			let bit = (dist>>(log-i-1)) as uint & 1 != 0;
 			if i >= self.bin_rest.len() {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.bin_rest.last().unwrap()).unwrap();

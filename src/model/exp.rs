@@ -43,10 +43,10 @@ impl super::DistanceModel for Model {
 	}
 
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
-		let bone = if dist==0 {0} else {1};
+		let bone = dist != 0;
 		eh.encode(bone, &self.bin_zero).unwrap();
 		self.bin_zero.update(bone, 5);
-		if bone == 0 {
+		if !bone {
 			return
 		}
 		fn int_log(d: super::Distance) -> uint {
@@ -60,7 +60,7 @@ impl super::DistanceModel for Model {
 		self.table_log.update(log-1, 10, 1);
 		// write mantissa
 		for i in range(1,log) {
-			let bit = (dist>>(log-i-1)) as uint & 1;
+			let bit = (dist>>(log-i-1)) as uint & 1 != 0;
 			if i >= self.bin_rest.len() {
 				// just send bits past the model, equally distributed
 				eh.encode(bit, self.bin_rest.last().unwrap()).unwrap();
@@ -75,7 +75,7 @@ impl super::DistanceModel for Model {
 	fn decode<R: io::Reader>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let bone = dh.decode(&self.bin_zero).unwrap();
 		self.bin_zero.update(bone, 5);
-		if bone == 0 {
+		if !bone {
 			return 0
 		}
 		let log = dh.decode(&self.table_log).unwrap() + 1;
