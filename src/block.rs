@@ -124,7 +124,6 @@ impl<M: DistanceModel> Decoder<M> {
 	pub fn decode<R: Reader, W: Writer>(&mut self, reader: R, mut writer: W) -> (R, W, io::IoResult<()>) {
 		let model = &mut self.model;
 		let mut dh = ari::Decoder::new(reader);
-		dh.start().unwrap();
 		// decode init distances
 		let init = {
 			let mut init = [self.input.len(), ..0x100];
@@ -161,7 +160,8 @@ impl<M: DistanceModel> Decoder<M> {
 			writer.write_u8(b).unwrap();
 		}
 		let result = writer.flush();
-		(dh.finish(), writer, result)
+		let (r, err) = dh.finish();
+		(r, writer, result.and(err))
 	}
 }
 

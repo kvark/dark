@@ -83,7 +83,6 @@ pub mod test {
 		err.unwrap();
 		m.reset();
 		let mut dh = ari::Decoder::new(io::BufReader::new(mem.get_ref()));
-		dh.start().unwrap();
 		for &(dist,ctx) in input.iter() {
 			let d2 = m.decode(&ctx, &mut dh);
 			debug!("Actual: {}, Decoded: {}", dist, d2);
