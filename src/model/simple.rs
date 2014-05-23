@@ -30,7 +30,7 @@ pub struct Model {
 
 impl super::DistanceModel for Model {
 	fn new_default() -> Model {
-		let threshold = ari::range_default_threshold >> 2;
+		let threshold = ari::RANGE_DEFAULT_THRESHOLD >> 2;
 		Model {
 			freq: Vec::from_fn(4, |_| ari::table::Model::new_flat(0x100, threshold)),
 			up	: [10,8,7,6],

@@ -10,7 +10,7 @@ http://www.compression.ru/ybs/
 
 # Credit
 
-Vadim Yookin for sharing details of YBS implementation.
+Vadim Yoockin for sharing details of YBS implementation.
 
 */
 
@@ -62,7 +62,7 @@ impl Model {
 
 impl super::DistanceModel for Model {
 	fn new_default() -> Model {
-		Model::new(ari::range_default_threshold >> 2)
+		Model::new(ari::RANGE_DEFAULT_THRESHOLD >> 2)
 	}
 
 	fn reset(&mut self) {

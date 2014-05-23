@@ -10,6 +10,7 @@ http://code.google.com/p/adark/
 */
 
 use std::{cmp, io};
+use std::fmt::Show;
 use std::vec::Vec;
 use compress::entropy::ari;
 
@@ -20,7 +21,7 @@ pub struct Aggregate<'a,F,X,Y> {
 	y: &'a Y,
 }
 
-impl<'a, F: Float, X: ari::Model<F>, Y: ari::Model<F>>
+impl<'a, F: Float + Show, X: ari::Model<F>, Y: ari::Model<F>>
 ari::Model<F> for Aggregate<'a,F,X,Y> {
 	fn get_range(&self, value: F) -> (ari::Border,ari::Border) {
 		let (x1,x2) = self.x.get_range(value);
@@ -142,7 +143,7 @@ impl Model {
 
 impl super::DistanceModel for Model {
 	fn new_default() -> Model {
-		Model::new(ari::range_default_threshold >> 2)
+		Model::new(ari::RANGE_DEFAULT_THRESHOLD >> 2)
 	}
 
 	fn reset(&mut self) {
