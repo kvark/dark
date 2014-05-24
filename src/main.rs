@@ -40,7 +40,7 @@ pub fn main() {
 	};
 	if matches.opt_present("h") || matches.free.is_empty() {
 		println!("{}", getopts::usage(
-			format!("Dark compressor usage:\n{} [options] input_file[.dark]", *args.get(0)),
+			format!("Dark compressor usage:\n{} [options] input_file[.dark]", args.get(0)).as_slice(),
 			options));
 		return
 	}

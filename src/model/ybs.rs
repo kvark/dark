@@ -50,10 +50,10 @@ pub struct Model {
 impl Model {
 	/// Create a new Model instance
 	pub fn new(threshold: ari::Border) -> Model {
-		let low_logs = 12u;
+		let low_groups = 13u;
 		Model {
-			table_log	: Vec::from_fn(low_logs, |_| ari::table::Model::new_flat(low_logs+1, threshold)),
-			table_high	: ari::table::Model::new_flat(32-low_logs, threshold),
+			table_log	: Vec::from_fn(low_groups, |_| ari::table::Model::new_flat(low_groups+1, threshold)),
+			table_high	: ari::table::Model::new_flat(32-low_groups, threshold),
 			bin_rest	: [ari::bin::Model::new_flat(threshold), ..3],
 			contexts	: [SymbolContext::new(), ..0x100],
 		}
@@ -80,28 +80,31 @@ impl super::DistanceModel for Model {
 	}
 
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
-		fn int_log(d: super::Distance) -> uint {
-			let mut log = 0;
-			while d>>log !=0 {log += 1;}
-			log
-		}
 		let max_low_log = self.table_log.len()-1;
-		let log = int_log(dist);
+		let group = if dist<4 {dist as uint} else {
+			let mut log = 3;
+			while dist>>log !=0 {log+=1;}
+			(log+1) as uint
+		};
 		let context = &mut self.contexts[ctx.symbol as uint];
 		let con_log = cmp::min(context.avg_log, max_low_log);
 		let freq_log = self.table_log.get_mut(con_log);
 		// write exponent
-		let log_encoded = cmp::min(log, max_low_log);
+		let log_encoded = cmp::min(group, max_low_log);
 		eh.encode(log_encoded, freq_log).unwrap();
 		// update model
 		freq_log.update(log_encoded, 10, 1);
 		context.update(log_encoded);	//use log?
-		if log >= max_low_log {
-			let add = log - max_low_log;
+		if group<4 {
+			return
+		}
+		if group >= max_low_log {
+			let add = group - max_low_log;
 			eh.encode(add, &self.table_high).unwrap();
 			self.table_high.update(add, 10, 1);
 		}
 		// write mantissa
+		let log = group-1;
 		for i in range(1,log) {
 			let bit = (dist>>(log-i-1)) as uint & 1 != 0;
 			if i >= self.bin_rest.len() {
@@ -125,15 +128,16 @@ impl super::DistanceModel for Model {
 		// update model
 		context.update(log_decoded);
 		freq_log.update(log_decoded, 10, 1);
-		if log_decoded == 0 {
-			return 0
+		if log_decoded < 4 {
+			return log_decoded as super::Distance
 		}
-		let log = if log_decoded == max_low_log {
+		let group = if log_decoded == max_low_log {
 			let add = dh.decode(&self.table_high).unwrap();
 			self.table_high.update(add, 10, 1);
 			max_low_log + add
 		}else {log_decoded};
 		// read mantissa
+		let log = group - 1;
 		let mut dist = 1 as super::Distance;
 		for i in range(1,log) {
 			let bit = if i >= self.bin_rest.len() {
