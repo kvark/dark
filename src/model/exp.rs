@@ -20,11 +20,11 @@ impl Model {
 	pub fn new(threshold: ari::Border) -> Model {
 		let num_logs = 24;
 		Model {
-			bin_zero	: ari::bin::Model::new_flat(threshold),
+			bin_zero	: ari::bin::Model::new_flat(threshold, 5),
 			table_log	: ari::table::Model::new_custom(num_logs, threshold, |i| {
 				1<<(10 - cmp::min(10,i))
 			}),
-			bin_rest	: [ari::bin::Model::new_flat(threshold), ..4],
+			bin_rest	: [ari::bin::Model::new_flat(threshold, 5), ..4],
 		}
 	}
 }
@@ -45,7 +45,7 @@ impl super::DistanceModel for Model {
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		let bone = dist != 0;
 		eh.encode(bone, &self.bin_zero).unwrap();
-		self.bin_zero.update(bone, 5);
+		self.bin_zero.update(bone);
 		if !bone {
 			return
 		}
@@ -67,14 +67,14 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.bin_rest[i-1];
 				eh.encode(bit, bc).unwrap();
-				bc.update(bit, 5);
+				bc.update(bit);
 			};
 		}
 	}
 
 	fn decode<R: io::Reader>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
 		let bone = dh.decode(&self.bin_zero).unwrap();
-		self.bin_zero.update(bone, 5);
+		self.bin_zero.update(bone);
 		if !bone {
 			return 0
 		}
@@ -87,7 +87,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.bin_rest[i-1];
 				let bit = dh.decode(bc).unwrap();
-				bc.update(bit, 5);
+				bc.update(bit);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);

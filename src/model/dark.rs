@@ -51,9 +51,9 @@ struct BinaryMultiplex {
 }
 
 impl BinaryMultiplex {
-	fn new(threshold: ari::Border) -> BinaryMultiplex {
+	fn new(threshold: ari::Border, factor: ari::Border) -> BinaryMultiplex {
 		BinaryMultiplex {
-			freqs: [ari::bin::Model::new_flat(threshold), ..32],
+			freqs: [ari::bin::Model::new_flat(threshold, factor), ..32],
 		}
 	}
 	fn reset(&mut self) {
@@ -71,11 +71,11 @@ struct SymbolContext {
 }
 
 impl SymbolContext {
-	fn new(threshold: ari::Border) -> SymbolContext {
+	fn new(threshold: ari::Border, factor: ari::Border) -> SymbolContext {
 		SymbolContext{
 			avg_dist	: 1000,
 			freq_log	: ari::table::Model::new_flat(MAX_LOG_CODE, threshold),
-			freq_extra	: BinaryMultiplex::new(threshold),
+			freq_extra	: BinaryMultiplex::new(threshold, factor),
 		}
 	}
 
@@ -108,9 +108,6 @@ pub struct Model {
 	update_log_global		: uint,
 	update_log_power		: uint,
 	update_log_add			: ari::Border,
-	update_bits_global		: uint,
-	update_bits_sym		: uint,
-	update_mantissa_global	: uint,
 }
 
 impl Model {
@@ -121,16 +118,13 @@ impl Model {
 				Vec::from_fn(NUM_LAST_LOGS, |_|
 					ari::table::Model::new_flat(MAX_LOG_CODE, threshold))
 			}),
-			freq_log_bits	: [BinaryMultiplex::new(threshold), ..2],
-			freq_mantissa	: [[ari::bin::Model::new_flat(threshold), ..MAX_BIT_CONTEXT+1], ..32],
-			contexts		: Vec::from_fn(0x100, |_| SymbolContext::new(threshold)),
+			freq_log_bits	: [BinaryMultiplex::new(threshold, 2), ..2],
+			freq_mantissa	: [[ari::bin::Model::new_flat(threshold, 8), ..MAX_BIT_CONTEXT+1], ..32],
+			contexts		: Vec::from_fn(0x100, |_| SymbolContext::new(threshold, 3)),
 			last_log_token	: 1,
 			update_log_global		: 12,
 			update_log_power		: 5,
 			update_log_add			: 5,
-			update_bits_global		: 2,
-			update_bits_sym			: 3,
-			update_mantissa_global	: 8,
 		}
 	}
 
@@ -189,15 +183,15 @@ impl super::DistanceModel for Model {
 				let bc = &mut context.freq_extra.freqs[i-MAX_LOG_CODE];
 				let fc = &mut freq_log_bits.freqs[i-MAX_LOG_CODE];
 				eh.encode(true, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
-				bc.update(true, self.update_bits_sym);
-				fc.update(true, self.update_bits_global);
+				bc.update(true);
+				fc.update(true);
 			}
 			let i = log-MAX_LOG_CODE;
 			let bc = &mut context.freq_extra.freqs[i];
 			let fc = &mut freq_log_bits.freqs[i];
 			eh.encode(false, &ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
-			bc.update(false, self.update_bits_sym);
-			fc.update(false, self.update_bits_global);
+			bc.update(false);
+			fc.update(false);
 		}
 		self.last_log_token = if log<2 {0} else if log<8 {1} else {2};
 		// write mantissa
@@ -210,7 +204,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut mantissa_context[i-1];
 				eh.encode(bit, bc).unwrap();
-				bc.update(bit, self.update_mantissa_global);
+				bc.update(bit);
 			};
 		}
 		// update the model
@@ -241,8 +235,8 @@ impl super::DistanceModel for Model {
 				let bc = &mut context.freq_extra.freqs[count];
 				let fc = &mut freq_log_bits.freqs[count];
 				let bit = dh.decode(&ari::bin::SumProxy::new(1,bc, 1,fc, 1)).unwrap();
-				bc.update(bit, self.update_bits_sym);
-				fc.update(bit, self.update_bits_global);
+				bc.update(bit);
+				fc.update(bit);
 				if !bit {break}
 				count += 1;
 			}
@@ -260,7 +254,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut mantissa_context[i-1];
 				let bit = dh.decode(bc).unwrap();
-				bc.update(bit, self.update_mantissa_global);
+				bc.update(bit);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);

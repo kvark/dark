@@ -54,7 +54,7 @@ impl Model {
 		Model {
 			table_log	: Vec::from_fn(low_groups, |_| ari::table::Model::new_flat(low_groups+1, threshold)),
 			table_high	: ari::table::Model::new_flat(32-low_groups, threshold),
-			bin_rest	: [ari::bin::Model::new_flat(threshold), ..3],
+			bin_rest	: [ari::bin::Model::new_flat(threshold, 5), ..3],
 			contexts	: [SymbolContext::new(), ..0x100],
 		}
 	}
@@ -113,7 +113,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.bin_rest[i-1];
 				eh.encode(bit, bc).unwrap();
-				bc.update(bit, 5);
+				bc.update(bit);
 			};
 		}
 	}
@@ -145,7 +145,7 @@ impl super::DistanceModel for Model {
 			}else {
 				let bc = &mut self.bin_rest[i-1];
 				let bit = dh.decode(bc).unwrap();
-				bc.update(bit, 5);
+				bc.update(bit);
 				bit
 			};
 			dist = (dist<<1) + (bit as super::Distance);
