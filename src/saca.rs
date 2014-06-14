@@ -20,7 +20,7 @@ pub type Suffix = u32;
 static SUF_INVALID	: Suffix = -1;
 
 
-fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
+fn sort_direct<T: Ord>(input: &[T], suffixes: &mut [Suffix]) {
 	for (i,p) in suffixes.mut_iter().enumerate() {
 		*p = i as Suffix;
 	}
@@ -31,7 +31,7 @@ fn sort_direct<T: TotalOrd>(input: &[T], suffixes: &mut [Suffix]) {
 			input.slice_from(b as uint).iter())
 	});
 
-	debug!("sort_direct: {:?}", suffixes);
+	debug!("sort_direct: {}", suffixes);
 }
 
 
@@ -124,7 +124,7 @@ fn induce_low<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		}
 	}
 
-	debug!("induce_low: result suf {:?}", suffixes);
+	debug!("induce_low: result suf {}", suffixes);
 }
 
 /// Induce S-type strings
@@ -151,7 +151,7 @@ fn induce_sup<T: Ord + ToPrimitive>(suffixes: &mut [Suffix], input: &[T], bucket
 		}
 	}
 
-	debug!("induce_sup: result suf {:?}", suffixes);
+	debug!("induce_sup: result suf {}", suffixes);
 }
 
 fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
@@ -236,7 +236,7 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 	}
 	fill(suffixes.mut_slice_from(n1), SUF_INVALID);
 
-	debug!("put_suffix prelude: {:?}", suffixes);
+	debug!("put_suffix prelude: {}", suffixes);
 
 	for i in range(0,n1).rev() {
 		let p = suffixes[i];
@@ -249,7 +249,7 @@ fn put_suffix<T: ToPrimitive>(suffixes: &mut [Suffix], n1: uint, input: &[T], bu
 		suffixes[*buck as uint] = p;
 	}
 
-	debug!("put_suffix: {:?}", suffixes);
+	debug!("put_suffix: {}", suffixes);
 }
 
 
@@ -277,7 +277,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 			}
 		}
 
-		debug!("Compacted LMS: {:?}", suffixes.slice_to(lms_count));
+		debug!("Compacted LMS: {}", suffixes.slice_to(lms_count));
 		lms_count
 	};
 
@@ -286,7 +286,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 		assert!(n1+n1 <= input.len());
 		let (input_new, sa_new) = storage.mut_split_at(n1);
 		let num_names = name_substr(sa_new.mut_slice_to(input.len()/2), input_new, input);
-		debug!("named input_new: {:?}", input_new);
+		debug!("named input_new: {}", input_new);
 		debug!("num_names = {}", num_names);
 		assert!(num_names <= n1);
 
@@ -298,12 +298,12 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 			for (i,&sym) in input_new.iter().enumerate() {
 				sa_new[sym as uint] = i as Suffix;
 			}
-			debug!("Sorted suffixes: {:?}", sa_new.slice_to(n1));
+			debug!("Sorted suffixes: {}", sa_new.slice_to(n1));
 		}
 
 		let slice = sa_new.mut_slice_to(n1);
 		gather_lms(slice, input_new, input);
-		debug!("Gathered LMS: {:?}", slice);
+		debug!("Gathered LMS: {}", slice);
 	}
 
 	// Stage 3: induce SA(S) from SA(S1).
@@ -357,7 +357,7 @@ impl Constructor {
 			sort_direct(input, self.suffixes.as_mut_slice());
 		}
 
-		debug!("construct suf: {:?}", self.suffixes.slice_to(self.n));
+		debug!("construct suf: {}", self.suffixes.slice_to(self.n));
 		self.suffixes.slice_to(self.n)
 	}
 

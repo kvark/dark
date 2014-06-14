@@ -5,7 +5,7 @@
 
 //! Dark compressor prototype
 
-#[phase(syntax, link)]
+#[phase(link, plugin)]
 extern crate log;
 extern crate getopts;
 extern crate compress;
@@ -45,7 +45,7 @@ pub fn main() {
 		return
 	}
 
-	let model = matches.opt_str("m").unwrap_or("exp".to_owned());
+	let model = matches.opt_str("m").unwrap_or("exp".to_string());
 	info!("Using model: {}", model);
 	let input_path = Path::new(matches.free.get(0).clone());
 	let file_name = input_path.filename_str().unwrap();
