@@ -66,7 +66,7 @@ impl DistanceModel for RawOut {
 pub mod test {
 	use std::io;
 	use std::vec::Vec;
-	use rand;
+	use std::rand::{Rng, StdRng};
 	use compress::entropy::ari;
 	use super::{Context, Distance, DistanceModel};
 	use super::Symbol;
@@ -91,10 +91,9 @@ pub mod test {
 	}
 
 	fn gen_data(size: uint, max_dist: Distance) -> Vec<(Distance,Context)> {
-		use rand::Rng;
-		let mut rng = rand::StdRng::new().unwrap();
+		let mut rng = StdRng::new().unwrap();
 		Vec::from_fn(size, |_| {
-			let sym = rng.gen::<Symbol>();
+			let sym: Symbol = rng.gen();
 			let ctx = Context::new(sym, 0, max_dist as uint);
 			(rng.gen_range(0, max_dist), ctx)
 		})
