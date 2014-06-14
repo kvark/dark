@@ -81,7 +81,9 @@ impl super::DistanceModel for Model {
 
 	fn encode<W: io::Writer>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
 		let max_low_log = self.table_log.len()-1;
-		let group = if dist<4 {dist as uint} else {
+		let group = if dist<4 {
+			dist as uint
+		} else {
 			let mut log = 3;
 			while dist>>log !=0 {log+=1;}
 			(log+1) as uint

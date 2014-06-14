@@ -1,11 +1,9 @@
 ## Dark compressor
 
-[![Build Status](https://travis-ci.org/kvark/dark.png?branch=master)](https://travis-ci.org/kvark/dark)
+[![Build Status](https://travis-ci.org/kvark/dark.png?branch=master)](https://travis-ci.org/kvark/dark) [![Stories in Ready](https://badge.waffle.io/kvark/dark.png?label=ready&title=Ready)](https://waffle.io/kvark/dark)
 ```
-git clone https://github.com/kvark/dark
+git clone --recursive https://github.com/kvark/dark
 cd dark
-git submodule init
-git submodule update
 make
 ```
 
