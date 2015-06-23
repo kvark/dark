@@ -2,7 +2,7 @@
 
 # sources
 #OBJS				= obj/dark.o obj/clip.o obj/pred.o obj/archon3.o obj/low.o obj/ptax.o
-TARGET				= dark
+TARGET				= bin/dark
 MAKEFILE			= Makefile
 
 # options
@@ -23,7 +23,7 @@ $(TARGET): src/*.h src/*.cpp $(MAKEFILE)
 	$(CC) -m32 -O0 -ggdb -o $(TARGET) $(LDFLAGS) src/*.cpp
 
 verb: $(TARGET)
-	$(CC) -m32 -O0 -ggdb -o verb $(LDFLAGS) -DVERBOSE src/*.cpp
+	$(CC) -m32 -O0 -ggdb -o bin/verb $(LDFLAGS) -DVERBOSE src/*.cpp
 
 distclean: clean
 clean:
