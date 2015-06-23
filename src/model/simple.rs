@@ -25,7 +25,7 @@ impl ari::Model<u8> for Raw {
 /// A simple DC model, coding up to 0xFF distances as-is, and with following 3 bytes otherwise
 pub struct Model {
 	freq: Vec<ari::table::Model>,
-	up	: [uint, ..4],
+	up	: [uint; 4],
 }
 
 impl super::DistanceModel for Model {
@@ -49,7 +49,7 @@ impl super::DistanceModel for Model {
 		self.freq.get_mut(0).update(val, self.up[0], 1);
 		if val == 0xFF {
 			let rest = (dist - 0xFF) as uint;
-			for i in range(0u,3u) {
+			for i in 0u32 .. 3 {
 				let b = (rest>>(i*8))&0xFF;
 				eh.encode(b, self.freq.get(i+1)).unwrap();
 				self.freq.get_mut(i+1).update(b, self.up[i+1], 1);
@@ -61,7 +61,7 @@ impl super::DistanceModel for Model {
 		let base = dh.decode(self.freq.get(0)).unwrap();
 		self.freq.get_mut(0).update(base, self.up[0], 1);
 		let d = if base == 0xFF {
-			range(0u,3u).fold(base, |u,i| {
+			(0u32 .. 3).fold(base, |u,i| {
 				let b = dh.decode(self.freq.get(i+1)).unwrap();
 				self.freq.get_mut(i+1).update(b, self.up[i+1], 1);
 				u + (b<<(i*8))

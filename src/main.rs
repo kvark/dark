@@ -1,14 +1,11 @@
-#![crate_id = "dark"]
-#![crate_type = "bin"]
 #![deny(warnings, missing_doc)]
-#![feature(phase)]
 
 //! Dark compressor prototype
 
-#[phase(link, plugin)]
+extern crate compress;
+#[macro_use]
 extern crate log;
 extern crate getopts;
-extern crate compress;
 #[cfg(test)]
 extern crate rand;
 #[cfg(test)]
@@ -36,7 +33,7 @@ pub fn main() {
 	let args = os::args();
 	let matches = match getopts::getopts(args.tail(), options) {
 		Ok(m)	=> m,
-		Err(f)	=> fail!(f.to_err_msg())
+		Err(f)	=> panic!(f.to_err_msg())
 	};
 	if matches.opt_present("h") || matches.free.is_empty() {
 		println!("{}", getopts::usage(
@@ -70,7 +67,7 @@ pub fn main() {
 			"raw"	=> block::Decoder::<model::RawOut>			::new(n).decode(in_file, out_file),
 			"simple"=> block::Decoder::<model::simple::Model>	::new(n).decode(in_file, out_file),
 			"ybs"	=> block::Decoder::<model::ybs::Model>		::new(n).decode(in_file, out_file),
-			_		=> fail!("Unknown decoding model: {}", model)
+			_		=> panic!("Unknown decoding model: {}", model)
 		};
 		err.unwrap();
 	}else {
@@ -94,7 +91,7 @@ pub fn main() {
 			"raw"	=> block::Encoder::<model::RawOut>			::new(n).encode(input.as_slice(), out_file),
 			"simple"=> block::Encoder::<model::simple::Model>	::new(n).encode(input.as_slice(), out_file),
 			"ybs"	=> block::Encoder::<model::ybs::Model>		::new(n).encode(input.as_slice(), out_file),
-			_		=> fail!("Unknown encoding model: {}", model)
+			_		=> panic!("Unknown encoding model: {}", model)
 		};
 		err.unwrap();
 	}

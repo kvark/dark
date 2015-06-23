@@ -10,7 +10,7 @@ http://code.google.com/p/adark/
 */
 
 use std::{cmp, io};
-use std::fmt::Show;
+use std::fmt::Debug;
 use std::vec::Vec;
 use compress::entropy::ari;
 
@@ -21,7 +21,7 @@ pub struct Aggregate<'a,F,X,Y> {
 	y: &'a Y,
 }
 
-impl<'a, F: Float + Show, X: ari::Model<F>, Y: ari::Model<F>>
+impl<'a, F: Float + Debug, X: ari::Model<F>, Y: ari::Model<F>>
 ari::Model<F> for Aggregate<'a,F,X,Y> {
 	fn get_range(&self, value: F) -> (ari::Border,ari::Border) {
 		let (x1,x2) = self.x.get_range(value);
@@ -39,15 +39,15 @@ ari::Model<F> for Aggregate<'a,F,X,Y> {
 }
 
 
-static MAX_LOG_CODE		: uint = 8;
-static MAX_LOG_CONTEXT	: uint = 11;
-static NUM_LAST_LOGS	: uint = 3;
-static MAX_BIT_CONTEXT	: uint = 3;
-static ADAPT_POWERS: [int, ..9] = [6,5,4,3,2,1,4,6,4];
+static MAX_LOG_CODE		: u32 = 8;
+static MAX_LOG_CONTEXT	: u32 = 11;
+static NUM_LAST_LOGS	: u32 = 3;
+static MAX_BIT_CONTEXT	: u32 = 3;
+static ADAPT_POWERS: [i32; 9] = [6,5,4,3,2,1,4,6,4];
 
 
 struct BinaryMultiplex {
-	pub freqs: [ari::bin::Model, ..32],
+	pub freqs: [ari::bin::Model; 32],
 }
 
 impl BinaryMultiplex {
@@ -99,8 +99,8 @@ impl SymbolContext {
 /// Coding model for BWT-DC output
 pub struct Model {
 	freq_log		: Vec<Vec<ari::table::Model>>,	//[MAX_LOG_CONTEXT+1][NUM_LAST_LOGS]
-	freq_log_bits	: [BinaryMultiplex, ..2],
-	freq_mantissa	: [[ari::bin::Model, ..MAX_BIT_CONTEXT+1], ..32],
+	freq_log_bits	: [BinaryMultiplex; 2],
+	freq_mantissa	: [[ari::bin::Model; MAX_BIT_CONTEXT+1]; 32],
 	/// specific context tracking
 	contexts		: Vec<SymbolContext>,
 	last_log_token	: uint,

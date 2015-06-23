@@ -16,26 +16,26 @@ static BIT_UPDATE	: int = 5;
 
 /// Coding model for BWT-DC output
 pub struct Model {
-	avg_log	: [uint, ..0x100],	//fixed-point
-	prob	: [[ari::apm::Bit, ..24], ..LOG_LIMIT],
+	avg_log	: [uint; 0x100],	//fixed-point
+	prob	: [[ari::apm::Bit; 24]; LOG_LIMIT],
 }
 
 impl Model {
 	/// Create a new model
 	pub fn new() -> Model {
 		Model {
-			avg_log	: [LOG_DEFAULT, ..0x100],
-			prob	: [[ari::apm::Bit::new_equal(), ..24], ..LOG_LIMIT],
+			avg_log	: [LOG_DEFAULT; 0x100],
+			prob	: [[ari::apm::Bit::new_equal(); 24]; LOG_LIMIT],
 		}
 	}
 
-	fn get_log(d: super::Distance) -> uint {
-		let du = d as uint;
+	fn get_log(d: super::Distance) -> u32 {
+		let du = d as u32;
 		match d {
-			0..2	=> d as uint << FIXED_BASE,
-			3..4	=> (3 << FIXED_BASE) + (du&1)*(FIXED_BASE>>1),
-			5..7	=> (4 << FIXED_BASE) + ((du-5)%3)*(FIXED_BASE/3),
-			8..12	=> (5 << FIXED_BASE) + (du&3)*(FIXED_BASE>>2),
+			0...2	=> du << FIXED_BASE,
+			3...4	=> (3 << FIXED_BASE) + (du&1)*(FIXED_BASE>>1),
+			5...7	=> (4 << FIXED_BASE) + ((du-5)%3)*(FIXED_BASE/3),
+			8...12	=> (5 << FIXED_BASE) + (du&3)*(FIXED_BASE>>2),
 			_		=> (6 << FIXED_BASE) + (du-12)*(FIXED_BASE>>12),
 		}
 	}

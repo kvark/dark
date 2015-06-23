@@ -1,0 +1,11 @@
+[package]
+name = "dark"
+version = "0.1.0"
+authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
+license = "MIT/Apache-2.0"
+
+[[bin]]
+name = "dark"
+
+[dependencies.compress]
+path = "../rust-compress"

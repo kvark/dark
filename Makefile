@@ -1,53 +1,12 @@
-LIB_DIR		=lib/compress
-LIB_PATH	=lib/libcompress-*.rlib
-#TUNE		=--cfg=tune
-TUNE		=
-SOURCE		=Makefile src/*.rs src/model/*.rs
-DEPS		=$(LIB_PATH) $(SOURCE)
+.PHONY: all
 
+all: cargo build
 
-.PHONY: all deps clean test test-lib bench profile test-lib
+old:
+	cd etc/dark-c && make
 
-all: bin/dark
-
-deps: $(LIB_PATH)
-
-clean:
-	rm $(LIB_PATH) bin/*
-
-
-$(LIB_PATH): $(LIB_DIR)/*.rs $(LIB_DIR)/entropy/ari/*.rs
-	cd lib && rustc -O -g $(TUNE) compress/lib.rs
-
-test-lib: $(LIB_PATH)
-	cd lib && rustc --test compress/lib.rs && ./compress
-
-
-bin/dark: $(DEPS)
-	mkdir -p bin
-	rustc -O -L lib -o bin/dark $(TUNE) src/main.rs
-
-bin/debug: $(DEPS)
-	rustc -g2 -L lib -o bin/debug src/main.rs
-
-bin/test: $(DEPS)
-	rustc -O -L lib --test -o bin/test src/main.rs
-
-bin/bench: $(DEPS)
-	rustc -O -L lib --test -o bin/bench src/main.rs
-
-bin/profile: $(DEPS)
+bin/profile: all
 	rustc -O -g1 -L lib -o bin/profile src/main.rs
-
-bin/profile-saca: $(DEPS)
-	rustc -O -g1 -L lib --test -o bin/profile-saca src/main.rs
-
-
-test: bin/test
-	bin/test
-
-bench: bin/bench
-	bin/bench --bench
 
 pack-%: bin/dark
 	bin/dark -m $* data/book1

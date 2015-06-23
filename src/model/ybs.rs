@@ -29,9 +29,9 @@ impl SymbolContext {
 		SymbolContext{ avg_log:0, last_diff:0 }
 	}
 
-	fn update(&mut self, log: uint) {
-		let a = if self.last_diff>3 {2u} else {1u};
-		let b = 1u;
+	fn update(&mut self, log: u32) {
+		let a = if self.last_diff>3 {2u32} else {1u32};
+		let b = 1u32;
 		self.last_diff = num::abs((log as int) - (self.avg_log as int)) as uint;
 		self.avg_log = (a*log + b*self.avg_log) / (a+b);
 	}
@@ -42,20 +42,20 @@ impl SymbolContext {
 pub struct Model {
 	table_log	: Vec<ari::table::Model>,
 	table_high	: ari::table::Model,
-	bin_rest	: [ari::bin::Model, ..3],
+	bin_rest	: [ari::bin::Model; 3],
 	/// specific context tracking
-	contexts	: [SymbolContext, ..0x100],
+	contexts	: [SymbolContext; 0x100],
 }
 
 impl Model {
 	/// Create a new Model instance
 	pub fn new(threshold: ari::Border) -> Model {
-		let low_groups = 13u;
+		let low_groups = 13u32;
 		Model {
 			table_log	: Vec::from_fn(low_groups, |_| ari::table::Model::new_flat(low_groups+1, threshold)),
 			table_high	: ari::table::Model::new_flat(32-low_groups, threshold),
-			bin_rest	: [ari::bin::Model::new_flat(threshold, 5), ..3],
-			contexts	: [SymbolContext::new(), ..0x100],
+			bin_rest	: [ari::bin::Model::new_flat(threshold, 5); 3],
+			contexts	: [SymbolContext::new(); 0x100],
 		}
 	}
 }

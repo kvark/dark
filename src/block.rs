@@ -61,7 +61,7 @@ impl<M: DistanceModel> Encoder<M> {
 		let mut eh = ari::Encoder::new(writer);
 		{	// encode init distances
 			let mut cur_active = true;
-			let mut i = 0u;
+			let mut i = 0u32;
 			while i<0xFF {
 				let base = i;
 				if cur_active {
@@ -128,10 +128,10 @@ impl<M: DistanceModel> Decoder<M> {
 		let init = {
 			let mut init = [self.input.len(), ..0x100];
 			let mut cur_active = true;
-			let mut i = 0u;
+			let mut i = 0u32;
 			while i<0xFF {
-				let add  = if i==0 && cur_active {0u} else {1u};
-				let num = model.decode(&ctx_0, &mut dh) as uint + add;
+				let add  = if i==0 && cur_active {0u32} else {1u32};
+				let num = model.decode(&ctx_0, &mut dh) as u32 + add;
 				debug!("Init num {}", num);
 				if cur_active {
 					for (sym,d) in init.mut_iter().enumerate().skip(i).take(num)	{

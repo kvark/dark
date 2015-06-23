@@ -159,8 +159,8 @@ fn get_lms_length<T: Eq + Ord>(input: &[T]) -> uint {
 		return 1
 	}
 
-	let mut dist = 0u;
-	let mut i = 0u;
+	let mut dist = 0u32;
+	let mut i = 0u32;
 	while {i+=1; i<input.len() && input[i-1] <= input[i]} {}
 
 	loop {
@@ -177,9 +177,9 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
 	fill(sa_new, SUF_INVALID);
 
  	// Scan to compute the interim s1.
-	let mut pre_pos = 0u;
-	let mut pre_len = 0u;
-	let mut name = 0u - 1u;
+	let mut pre_pos = 0u32;
+	let mut pre_len = 0u32;
+	let mut name = !0u32;
 	for suf in input_new.iter() {
 		let pos = *suf as uint;
 		let len = get_lms_length(input.slice_from(pos));
@@ -269,8 +269,8 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: uint, storage: &m
 
 		// Now, all the LMS-substrings are sorted and stored sparsely in SA.
 		// Compact all the sorted substrings into the first n1 items of SA.
-		let mut lms_count = 0u;
-		for i in range(0, suffixes.len()) {
+		let mut lms_count = 0u32;
+		for i in 0 .. suffixes.len() {
 			if suffixes[i] != SUF_INVALID {
 				suffixes[lms_count] = suffixes[i];
 				lms_count += 1;
@@ -334,7 +334,7 @@ pub struct Constructor {
 impl Constructor {
 	/// Create a new instance for a given maximum input size
 	pub fn new(max_n: uint) -> Constructor {
-		let extra_2s = (1u<<15) + (1u<<7u);
+		let extra_2s = (1u32<<15) + (1u32<<7);
 		let extra = 0x100 + cmp::max(max_n/4, cmp::min(extra_2s, max_n/2));
 		info!("n: {}, extra words: {}", max_n, extra);
 		Constructor {
