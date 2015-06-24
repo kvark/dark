@@ -2,6 +2,7 @@
 
 //! Dark compressor prototype
 
+extern crate byteorder;
 extern crate compress;
 extern crate getopts;
 #[macro_use]
@@ -12,8 +13,10 @@ extern crate rand;
 #[cfg(test)]
 extern crate test;
 
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::{env, io};
 use std::fs::File;
+use std::path::Path;
 use model::DistanceModel;
 
 /// Block encoding/decoding logic
@@ -32,38 +35,37 @@ pub fn main() {
         //getopts::optopt("o", "output", "set output file name", "NAME"),
         getopts::optflag("h", "help", "print this help info"),
     ];
-    let args = env::args();
-    let matches = match getopts::getopts(args.tail(), options) {
+    let args: Vec<_> = env::args().collect();
+    let matches = match getopts::getopts(&args[1..], &options) {
         Ok(m)   => m,
         Err(f)  => panic!(f.to_err_msg())
     };
     if matches.opt_present("h") || matches.free.is_empty() {
         println!("{}", getopts::usage(
-            format!("Dark compressor usage:\n{} [options] input_file[.dark]", args.get(0)).as_slice(),
-            options));
+            &format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]),
+            &options));
         return
     }
 
     let model = matches.opt_str("m").unwrap_or("exp".to_string());
     info!("Using model: {}", model);
-    let input_path = &matches.free.get(0).clone();
-    let file_name = input_path.filename_str().unwrap();
-    if file_name.ends_with(extension) {
+    let input_path = Path::new(&matches.free.get(0).unwrap().clone());
+    let file_name = input_path.file_name().unwrap();
+    if input_path.extension().unwrap() == extension {
         let mut in_file = match File::open(&input_path) {
             Ok(file) => io::BufReader::new(file),
             Err(e) => {
-                println!("Input {} can not be read: {}", input_path.as_str(), e.to_str());
+                println!("Input {:?} can not be read: {:?}", input_path, e);
                 return;
             }
         };
-        let ext_pos = file_name.len() - extension.len();
-        let out_path = format!("{}{}", file_name.slice_to(ext_pos), ".orig");
-        let out_file = io::BufWriter::new(File::create(&out_path));
+        let out_path = input_path.with_extension("orig");
+        let out_file = io::BufWriter::new(File::create(&out_path).unwrap());
         // decode the block size
-        let n = in_file.read_le_u32().unwrap() as usize;
+        let n = in_file.read_u32::<LittleEndian>().unwrap() as usize;
         info!("Decoding N: {}", n);
         // decode the block
-        let (_, _, err) = match model.as_slice() {
+        let (_, _, err) = match model.as_ref() {
             "dark"  => block::Decoder::<model::dark::Model>     ::new(n).decode(in_file, out_file),
             "exp"   => block::Decoder::<model::exp::Model>      ::new(n).decode(in_file, out_file),
             "raw"   => block::Decoder::<model::RawOut>          ::new(n).decode(in_file, out_file),
@@ -73,26 +75,28 @@ pub fn main() {
         };
         err.unwrap();
     }else {
-        let input = match File::open(&input_path).read_to_end() {
-            Ok(data) => data,
+        use std::io::Read;
+        let mut input = Vec::new();
+        let file = match File::open(&input_path) {
+            Ok(f) => f,
             Err(e) => {
-                println!("Input {} can not be read: {}", input_path.as_str(), e.to_str());
+                println!("Input {:?} can not be read: {}", input_path, e);
                 return;
             }
         };
-        let n = input.len();
+        let n = file.read_to_end(&mut input).unwrap();
         // write the block size
-        let out_path = format!("{}{}", file_name, ".dark");
+        let out_path = input_path.with_extension("dark");
         let mut out_file = io::BufWriter::new(File::create(&out_path).unwrap());
         info!("Encoding N: {}", n);
-        out_file.write_le_u32(n as u32).unwrap();
+        out_file.write_u32::<LittleEndian>(n as u32).unwrap();
         // encode the block
-        let (_, err) = match model.as_slice() {
-            "dark"  => block::Encoder::<model::dark::Model>     ::new(n).encode(input.as_slice(), out_file),
-            "exp"   => block::Encoder::<model::exp::Model>      ::new(n).encode(input.as_slice(), out_file),
-            "raw"   => block::Encoder::<model::RawOut>          ::new(n).encode(input.as_slice(), out_file),
-            "simple"=> block::Encoder::<model::simple::Model>   ::new(n).encode(input.as_slice(), out_file),
-            "ybs"   => block::Encoder::<model::ybs::Model>      ::new(n).encode(input.as_slice(), out_file),
+        let (_, err) = match model.as_ref() {
+            "dark"  => block::Encoder::<model::dark::Model>     ::new(n).encode(&input, out_file),
+            "exp"   => block::Encoder::<model::exp::Model>      ::new(n).encode(&input, out_file),
+            "raw"   => block::Encoder::<model::RawOut>          ::new(n).encode(&input, out_file),
+            "simple"=> block::Encoder::<model::simple::Model>   ::new(n).encode(&input, out_file),
+            "ybs"   => block::Encoder::<model::ybs::Model>      ::new(n).encode(&input, out_file),
             _       => panic!("Unknown encoding model: {}", model)
         };
         err.unwrap();
