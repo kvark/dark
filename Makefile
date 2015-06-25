@@ -1,6 +1,9 @@
+EXE	=target/release/dark
+
 .PHONY: all
 
-all: cargo build
+all:
+	cargo build --release
 
 old:
 	cd etc/dark-c && make
@@ -8,10 +11,10 @@ old:
 bin/profile: all
 	rustc -O -g1 -L lib -o bin/profile src/main.rs
 
-pack-%: bin/dark
-	bin/dark -m $* data/book1
+pack-%: all
+	$(EXE) -m $* data/book1
 	ls -l book1.dark
-	bin/dark -m $* book1.dark
+	$(EXE) -m $* book1.dark
 	cmp data/book1 book1.orig
 	rm book1.*
 

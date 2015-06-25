@@ -4,6 +4,7 @@
 
 extern crate byteorder;
 extern crate compress;
+extern crate env_logger;
 extern crate getopts;
 #[macro_use]
 extern crate log;
@@ -14,7 +15,7 @@ extern crate rand;
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::{env, io};
 use std::fs::File;
-use std::path::Path;
+use std::path;
 use model::DistanceModel;
 
 /// Block encoding/decoding logic
@@ -24,10 +25,12 @@ pub mod model;
 /// Suffix Array Construction Algorithm (SACA)
 pub mod saca;
 
+const EXTENSION: &'static str = "dark";
+
 
 /// Program entry point
 pub fn main() {
-    let extension = ".dark";
+    env_logger::init().unwrap();
     let mut options = getopts::Options::new();
     options.optopt("m", "model", "set compression model", "dark|exp|raw|simple|ybs");
     //options.optopt("o", "output", "set output file name", "NAME");
@@ -46,8 +49,9 @@ pub fn main() {
 
     let model = matches.opt_str("m").unwrap_or("exp".to_string());
     info!("Using model: {}", model);
-    let input_path = Path::new(&matches.free[0]);
-    if input_path.extension().unwrap() == extension {
+    let input_path = path::Path::new(&matches.free[0]);
+    let input_ext = input_path.extension();
+    if input_ext.is_some() && input_ext.unwrap() == EXTENSION {
         let mut in_file = match File::open(&input_path) {
             Ok(file) => io::BufReader::new(file),
             Err(e) => {
@@ -55,7 +59,9 @@ pub fn main() {
                 return;
             }
         };
-        let out_path = input_path.with_extension("orig");
+        let mut out_path = path::PathBuf::new();
+        out_path.set_file_name(input_path.file_name().unwrap());
+        out_path.set_extension("orig");
         let out_file = io::BufWriter::new(File::create(&out_path).unwrap());
         // decode the block size
         let n = in_file.read_u32::<LittleEndian>().unwrap() as usize;
@@ -82,7 +88,9 @@ pub fn main() {
         };
         let n = file.read_to_end(&mut input).unwrap();
         // write the block size
-        let out_path = input_path.with_extension("dark");
+        let mut out_path = path::PathBuf::new();
+        out_path.set_file_name(input_path.file_name().unwrap());
+        out_path.set_extension(EXTENSION);
         let mut out_file = io::BufWriter::new(File::create(&out_path).unwrap());
         info!("Encoding N: {}", n);
         out_file.write_u32::<LittleEndian>(n as u32).unwrap();
