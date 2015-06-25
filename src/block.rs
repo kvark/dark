@@ -4,15 +4,16 @@ Block encoding/decoding routines
 
 */
 
+use byteorder::WriteBytesExt;
 use std::io;
-use std::vec::Vec;
+
 use compress::bwt;
 use compress::entropy::ari;
 use model::{Distance, DistanceModel};
 use saca;
 
 
-static ctx_0: bwt::dc::Context = bwt::dc::Context {
+const CTX_0: bwt::dc::Context = bwt::dc::Context {
     symbol: 0, last_rank: 0, distance_limit: 0x101,
 };
 
@@ -53,15 +54,15 @@ impl<M: DistanceModel> Encoder<M> {
         let (output, origin) = {
             let suf = self.sac.compute(input);
             let mut iter = bwt::TransformIterator::new(input, suf);
-            let out: Vec<u8> = iter.collect();
+            let out: Vec<u8> = iter.by_ref().collect();
             (out, iter.get_origin())
         };
-        let suf = self.sac.reuse().mut_slice_to(block_size);
-        let mut dc_iter = bwt::dc::encode(output.as_slice(), suf, &mut self.mtf);
+        let suf = &mut self.sac.reuse()[.. block_size];
+        let dc_iter = bwt::dc::encode(&output, suf, &mut self.mtf);
         let mut eh = ari::Encoder::new(writer);
         {   // encode init distances
             let mut cur_active = true;
-            let mut i = 0u32;
+            let mut i = 0usize;
             while i<0xFF {
                 let base = i;
                 if cur_active {
@@ -70,7 +71,7 @@ impl<M: DistanceModel> Encoder<M> {
                     }
                     let num = (if base==0 {i} else {i-base-1}) as Distance;
                     debug!("Init fill num {}", num);
-                    self.model.encode(num, &ctx_0, &mut eh);
+                    self.model.encode(num, &CTX_0, &mut eh);
                     for (sym,d) in dc_iter.get_init().iter().enumerate().skip(base).take(i-base) {
                         let ctx = bwt::dc::Context::new(sym as u8, 0, input.len());
                         self.model.encode(*d as Distance, &ctx, &mut eh);
@@ -78,10 +79,10 @@ impl<M: DistanceModel> Encoder<M> {
                     }
                     cur_active = false;
                 }else {
-                    while {i+=1; i<0xFF && dc_iter.get_init()[i]==block_size} {}
+                    while {i+=1; i<0xFF && dc_iter.get_init()[i] == block_size} {}
                     let num = (i-base-1) as Distance;
                     debug!("Init empty num {}", num);
-                    self.model.encode(num, &ctx_0, &mut eh);
+                    self.model.encode(num, &CTX_0, &mut eh);
                     cur_active = true;
                 }
             }
@@ -93,7 +94,7 @@ impl<M: DistanceModel> Encoder<M> {
         }
         // done
         info!("Origin: {}", origin);
-        self.model.encode(origin as Distance, &ctx_0, &mut eh);
+        self.model.encode(origin as Distance, &CTX_0, &mut eh);
         print_stats(&eh);
         eh.finish()
     }
@@ -112,9 +113,10 @@ pub struct Decoder<M> {
 impl<M: DistanceModel> Decoder<M> {
     /// Create a new decoder instance
     pub fn new(n: usize) -> Decoder<M> {
+        use std::iter::repeat;
         Decoder {
-            input   : Vec::from_elem(n, 0u8),
-            suffixes: Vec::from_elem(n, 0 as saca::Suffix),
+            input   : repeat(0u8).take(n).collect(),
+            suffixes: repeat(0 as saca::Suffix).take(n).collect(),
             mtf     : bwt::mtf::MTF::new(),
             model   : DistanceModel::new_default(),
         }
@@ -126,15 +128,15 @@ impl<M: DistanceModel> Decoder<M> {
         let mut dh = ari::Decoder::new(reader);
         // decode init distances
         let init = {
-            let mut init = [self.input.len(), ..0x100];
+            let mut init = [self.input.len(); 0x100];
             let mut cur_active = true;
-            let mut i = 0u32;
+            let mut i = 0usize;
             while i<0xFF {
-                let add  = if i==0 && cur_active {0u32} else {1u32};
-                let num = model.decode(&ctx_0, &mut dh) as u32 + add;
+                let add  = if i==0 && cur_active {0usize} else {1usize};
+                let num = model.decode(&CTX_0, &mut dh) as usize + add;
                 debug!("Init num {}", num);
                 if cur_active {
-                    for (sym,d) in init.mut_iter().enumerate().skip(i).take(num)    {
+                    for (sym,d) in init.iter_mut().enumerate().skip(i).take(num)    {
                         let ctx = bwt::dc::Context::new(sym as u8, 0, self.input.len());
                         *d = model.decode(&ctx, &mut dh) as usize;
                         debug!("Init {} for {}", *d, sym);
@@ -148,15 +150,15 @@ impl<M: DistanceModel> Decoder<M> {
             init
         };
         // decode distances
-        bwt::dc::decode(init, self.input.as_mut_slice(), &mut self.mtf, |ctx| {
+        bwt::dc::decode(init, &mut self.input, &mut self.mtf, |ctx| {
             let d = model.decode(&ctx, &mut dh);
             debug!("Distance {} for {}", d, ctx.symbol);
             Ok(d as usize)
         }).unwrap();
-        let origin = model.decode(&ctx_0, &mut dh) as usize;
+        let origin = model.decode(&CTX_0, &mut dh) as usize;
         info!("Origin: {}", origin);
         // undo BWT and write output
-        for b in bwt::decode(self.input.as_slice(), origin, self.suffixes.as_mut_slice()) {
+        for b in bwt::decode(&self.input, origin, &mut self.suffixes) {
             writer.write_u8(b).unwrap();
         }
         let result = writer.flush();
@@ -179,7 +181,7 @@ pub mod test {
         let reader = io::BufReader::new(writer.get_ref());
         let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, io::MemWriter::new());
         err.unwrap();
-        assert_eq!(bytes.as_slice(), output.get_ref());
+        assert_eq!(&bytes[..], output.get_ref());
     }
 
     #[test]
@@ -195,7 +197,7 @@ pub mod test {
         let mut buffer = Vec::from_elem(input.len(), 0u8);
         let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
         bh.iter(|| {
-            let (_, err) = encoder.encode(input, io::BufWriter::new(buffer.as_mut_slice()));
+            let (_, err) = encoder.encode(input, io::BufWriter::new(&mut buffer));
             err.unwrap();
         });
         bh.bytes = input.len() as u64;
@@ -212,7 +214,9 @@ pub mod test {
         let mut decoder = super::Decoder::<ybs::Model>::new(input.len());
         bh.iter(|| {
             decoder.model.reset();
-            let (_, _, err) = decoder.decode(io::BufReader::new(writer.get_ref()), io::BufWriter::new(buffer.as_mut_slice()));
+            let (_, _, err) = decoder.decode(
+                io::BufReader::new(writer.get_ref()),
+                io::BufWriter::new(&mut buffer));
             err.unwrap();
         });
         bh.bytes = input.len() as u64;

@@ -15,7 +15,6 @@ Vadim Yoockin for sharing details of YBS implementation.
 */
 
 use std::{cmp, io};
-use std::vec::Vec;
 use compress::entropy::ari;
 
 
@@ -29,9 +28,9 @@ impl SymbolContext {
         SymbolContext{ avg_log:0, last_diff:0 }
     }
 
-    fn update(&mut self, log: u32) {
-        let a = if self.last_diff>3 {2u32} else {1u32};
-        let b = 1u32;
+    fn update(&mut self, log: usize) {
+        let a = if self.last_diff>3 {2usize} else {1usize};
+        let b = 1usize;
         self.last_diff = ((log as isize) - (self.avg_log as isize)).abs() as usize;
         self.avg_log = (a*log + b*self.avg_log) / (a+b);
     }
@@ -42,20 +41,24 @@ impl SymbolContext {
 pub struct Model {
     table_log   : Vec<ari::table::Model>,
     table_high  : ari::table::Model,
-    bin_rest    : [ari::bin::Model; 3],
+    bin_rest    : Vec<ari::bin::Model>,
     /// specific context tracking
-    contexts    : [SymbolContext; 0x100],
+    contexts    : Vec<SymbolContext>,
 }
 
 impl Model {
     /// Create a new Model instance
     pub fn new(threshold: ari::Border) -> Model {
-        let low_groups = 13u32;
+        let low_groups = 13usize;
         Model {
-            table_log   : Vec::from_fn(low_groups, |_| ari::table::Model::new_flat(low_groups+1, threshold)),
+            table_log   : (0..low_groups).map(|_|
+                ari::table::Model::new_flat(low_groups+1, threshold)
+                ).collect(),
             table_high  : ari::table::Model::new_flat(32-low_groups, threshold),
-            bin_rest    : [ari::bin::Model::new_flat(threshold, 5); 3],
-            contexts    : [SymbolContext::new(); 0x100],
+            bin_rest    : (0..3).map(|_|
+                ari::bin::Model::new_flat(threshold, 5)
+                ).collect(),
+            contexts    : (0..0x100).map(|_| SymbolContext::new()).collect(),
         }
     }
 }
@@ -66,14 +69,14 @@ impl super::DistanceModel for Model {
     }
 
     fn reset(&mut self) {
-        for table in self.table_log.mut_iter() {
+        for table in self.table_log.iter_mut() {
             table.reset_flat();
         }
         self.table_high.reset_flat();
-        for bm in self.bin_rest.mut_iter() {
+        for bm in self.bin_rest.iter_mut() {
             bm.reset_flat();
         }
-        for con in self.contexts.mut_iter() {
+        for con in self.contexts.iter_mut() {
             con.avg_log = 0;
             con.last_diff = 0;
         }
@@ -90,7 +93,7 @@ impl super::DistanceModel for Model {
         };
         let context = &mut self.contexts[ctx.symbol as usize];
         let con_log = cmp::min(context.avg_log, max_low_log);
-        let freq_log = self.table_log.get_mut(con_log);
+        let freq_log = &mut self.table_log[con_log];
         // write exponent
         let log_encoded = cmp::min(group, max_low_log);
         eh.encode(log_encoded, freq_log).unwrap();
@@ -124,7 +127,7 @@ impl super::DistanceModel for Model {
         let max_low_log = self.table_log.len()-1;
         let context = &mut self.contexts[ctx.symbol as usize];
         let con_log = cmp::min(context.avg_log, max_low_log);
-        let freq_log = self.table_log.get_mut(con_log);
+        let freq_log = &mut self.table_log[con_log];
         // read exponent
         let log_decoded = dh.decode(freq_log).unwrap();
         // update model

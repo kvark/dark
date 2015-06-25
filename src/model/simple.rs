@@ -5,7 +5,6 @@ A simple coding model to be a baseline for comparison
 */
 
 use std::{cmp, io};
-use std::vec::Vec;
 use compress::entropy::ari;
 
 
@@ -32,38 +31,38 @@ impl super::DistanceModel for Model {
     fn new_default() -> Model {
         let threshold = ari::RANGE_DEFAULT_THRESHOLD >> 2;
         Model {
-            freq: Vec::from_fn(4, |_| ari::table::Model::new_flat(0x100, threshold)),
+            freq: (0..4).map(|_| ari::table::Model::new_flat(0x100, threshold)).collect(),
             up  : [10,8,7,6],
         }
     }
 
     fn reset(&mut self) {
-        for table in self.freq.mut_iter() {
+        for table in self.freq.iter_mut() {
             table.reset_flat();
         }
     }
 
     fn encode<W: io::Write>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
         let val = cmp::min(0xFF, dist) as usize;
-        eh.encode(val, self.freq.get(0)).unwrap();
-        self.freq.get_mut(0).update(val, self.up[0], 1);
+        eh.encode(val, &self.freq[0]).unwrap();
+        self.freq[0].update(val, self.up[0], 1);
         if val == 0xFF {
             let rest = (dist - 0xFF) as usize;
-            for i in 0u32 .. 3 {
+            for i in 0usize .. 3 {
                 let b = (rest>>(i*8))&0xFF;
-                eh.encode(b, self.freq.get(i+1)).unwrap();
-                self.freq.get_mut(i+1).update(b, self.up[i+1], 1);
+                eh.encode(b, &self.freq[i+1]).unwrap();
+                self.freq[i+1].update(b, self.up[i+1], 1);
             }
         }
     }
 
     fn decode<R: io::Read>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
-        let base = dh.decode(self.freq.get(0)).unwrap();
-        self.freq.get_mut(0).update(base, self.up[0], 1);
+        let base = dh.decode(&self.freq[0]).unwrap();
+        self.freq[0].update(base, self.up[0], 1);
         let d = if base == 0xFF {
-            (0u32 .. 3).fold(base, |u,i| {
-                let b = dh.decode(self.freq.get(i+1)).unwrap();
-                self.freq.get_mut(i+1).update(b, self.up[i+1], 1);
+            (0usize .. 3).fold(base, |u,i| {
+                let b = dh.decode(&self.freq[i+1]).unwrap();
+                self.freq[i+1].update(b, self.up[i+1], 1);
                 u + (b<<(i*8))
             })
         }else {base};

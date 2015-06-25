@@ -1,4 +1,4 @@
-#![deny(warnings, missing_doc)]
+#![deny(missing_docs)]
 
 //! Dark compressor prototype
 
@@ -30,27 +30,25 @@ pub mod saca;
 /// Program entry point
 pub fn main() {
     let extension = ".dark";
-    let options = [
-        getopts::optopt("m", "model", "set compression model", "dark|exp|raw|simple|ybs"),
-        //getopts::optopt("o", "output", "set output file name", "NAME"),
-        getopts::optflag("h", "help", "print this help info"),
-    ];
+    let mut options = getopts::Options::new();
+    options.optopt("m", "model", "set compression model", "dark|exp|raw|simple|ybs");
+    //options.optopt("o", "output", "set output file name", "NAME");
+    options.optflag("h", "help", "print this help info");
+
     let args: Vec<_> = env::args().collect();
-    let matches = match getopts::getopts(&args[1..], &options) {
+    let matches = match options.parse(&args[1..]) {
         Ok(m)   => m,
-        Err(f)  => panic!(f.to_err_msg())
+        Err(f)  => panic!(f.to_string())
     };
     if matches.opt_present("h") || matches.free.is_empty() {
-        println!("{}", getopts::usage(
-            &format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]),
-            &options));
+        let brief = format!("Dark compressor usage:\n{} [options] input_file[.dark]", args[0]);
+        println!("{}", options.usage(&brief));
         return
     }
 
     let model = matches.opt_str("m").unwrap_or("exp".to_string());
     info!("Using model: {}", model);
-    let input_path = Path::new(&matches.free.get(0).unwrap().clone());
-    let file_name = input_path.file_name().unwrap();
+    let input_path = Path::new(&matches.free[0]);
     if input_path.extension().unwrap() == extension {
         let mut in_file = match File::open(&input_path) {
             Ok(file) => io::BufReader::new(file),
@@ -77,7 +75,7 @@ pub fn main() {
     }else {
         use std::io::Read;
         let mut input = Vec::new();
-        let file = match File::open(&input_path) {
+        let mut file = match File::open(&input_path) {
             Ok(f) => f,
             Err(e) => {
                 println!("Input {:?} can not be read: {}", input_path, e);

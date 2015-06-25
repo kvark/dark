@@ -11,11 +11,12 @@ https://code.google.com/p/ge-nong/
 
 */
 
+use log::LogLevel;
 use num::ToPrimitive;
-use std::{cmp, iter};
-use std::vec::Vec;
 
+/// Symbol type
 pub type Symbol = u8;
+/// Suffix type = index of the original sub-string
 pub type Suffix = u32;
 
 const SUF_INVALID: Suffix = !0;
@@ -207,7 +208,7 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
     name + 1
 }
 
-fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], input: &[T]) {
+fn gather_lms<T: Eq + Ord>(input_new: &mut [Suffix], input: &[T]) {
     let mut iter = input_new.iter_mut().rev();
 
     let succ_t = input.iter()
@@ -231,7 +232,9 @@ fn gather_lms<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inpu
         debug!("\tgather_lms: found first suffix");
     }
     assert!(iter.next().is_none());
+}
 
+fn gather_lms_post(sa_new: &mut [Suffix], input_new: &mut [Suffix]) {
     for suf in sa_new.iter_mut() {
         *suf = input_new[*suf as usize];
     }
@@ -313,7 +316,8 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: usize, storage: &
         }
 
         let slice = &mut sa_new[..n1];
-        gather_lms(slice, input_new, input);
+        gather_lms(input_new, input);
+        gather_lms_post(slice, input_new);
         debug!("Gathered LMS: {:?}", slice);
     }
 
@@ -326,7 +330,7 @@ fn saca<T: Eq + Ord + ToPrimitive>(input: &[T], alphabet_size: usize, storage: &
         induce_low(suffixes, input, buckets, false);
         induce_sup(suffixes, input, buckets, false);
 
-        if log_enabled!(4) {
+        if log_enabled!(LogLevel::Debug) {
             for (i,p) in suffixes.iter().enumerate() {
                 assert_eq!(suffixes[..i].iter().find(|suf| *suf==p), None);
                 assert!(i == 0 || input[suffixes[i-1] as usize] <= input[suffixes[i] as usize]);
@@ -345,6 +349,7 @@ pub struct Constructor {
 impl Constructor {
     /// Create a new instance for a given maximum input size
     pub fn new(max_n: usize) -> Constructor {
+        use std::cmp;
         let extra_2s = (1usize<<15) + (1usize<<7);
         let extra = 0x100 + cmp::max(max_n/4, cmp::min(extra_2s, max_n/2));
         info!("n: {}, extra words: {}", max_n, extra);

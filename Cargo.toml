@@ -9,7 +9,7 @@ name = "dark"
 
 [dependencies]
 byteorder = "*"
+compress = "0.1"
+getopts = "*"
+log = "*"
 num = "*"
-
-[dependencies.compress]
-path = "../rust-compress"

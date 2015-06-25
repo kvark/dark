@@ -4,6 +4,7 @@ Various BWT-DC compression models
 
 */
 
+use byteorder::{LittleEndian, WriteBytesExt};
 use compress::entropy::ari;
 pub use compress::bwt::dc::Context;
 use std::io;
@@ -18,7 +19,9 @@ pub mod simple;
 /// A attempt to reproduce YBS model
 pub mod ybs;
 
+/// Distance type
 pub type Distance = u32;
+/// Symbol type
 pub type Symbol = u8;
 
 
@@ -28,8 +31,10 @@ pub trait DistanceModel {
     fn new_default() -> Self;
     /// Reset current estimations
     fn reset(&mut self);
+    //TODO: return Result
     /// Encode a distance for some symbol
     fn encode<W: io::Write>(&mut self, Distance, &Context, &mut ari::Encoder<W>);
+    //TODO: return Result
     /// Decode a distance for some symbol
     fn decode<R: io::Read>(&mut self, &Context, &mut ari::Decoder<R>) -> Distance;
 }
@@ -51,10 +56,10 @@ impl DistanceModel for RawOut {
 
     fn encode<W: io::Write>(&mut self, d: Distance, c: &Context, _enc: &mut ari::Encoder<W>) {
         debug!("Encoding raw distance {} for symbol {}", d, c.symbol);
-        self.out.write_le_u32(d).and(
+        self.out.write_u32::<LittleEndian>(d).and(
             self.out.write_u8(c.symbol)).and(
             self.out.write_u8(c.last_rank)).and(
-            self.out.write_le_u32(c.distance_limit as u32)).unwrap();
+            self.out.write_u32::<LittleEndian>(c.distance_limit as u32)).unwrap();
     }
 
     fn decode<R: io::Read>(&mut self, _c: &Context, _dec: &mut ari::Decoder<R>) -> Distance {

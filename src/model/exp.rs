@@ -8,15 +8,15 @@ use std::io;
 use compress::entropy::ari;
 
 
-const FIXED_BASE    : usize = 8;
-const FIXED_MASK    : usize = (1<<FIXED_BASE) - 1;
+const FIXED_BASE    : u32 = 8;
+const FIXED_MASK    : u32 = (1<<FIXED_BASE) - 1;
 const LOG_LIMIT     : usize = 10;
-const LOG_DEFAULT   : usize = 1<<FIXED_BASE;
+const LOG_DEFAULT   : u32 = 1<<FIXED_BASE;
 const BIT_UPDATE    : isize = 5;
 
 /// Coding model for BWT-DC output
 pub struct Model {
-    avg_log : [usize; 0x100],   //fixed-point
+    avg_log : [u32; 0x100],   //fixed-point
     prob    : [[ari::apm::Bit; 24]; LOG_LIMIT],
 }
 
@@ -47,11 +47,11 @@ impl super::DistanceModel for Model {
     }
 
     fn reset(&mut self) {
-        for log in self.avg_log.mut_iter() {
+        for log in self.avg_log.iter_mut() {
             *log = LOG_DEFAULT;
         }
-        for log in self.prob.mut_iter() {
-            for bit in log.mut_iter() {
+        for log in self.prob.iter_mut() {
+            for bit in log.iter_mut() {
                 *bit = ari::apm::Bit::new_equal();
             }
         }
@@ -60,14 +60,14 @@ impl super::DistanceModel for Model {
     fn encode<W: io::Write>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
-        let w2 = (log & FIXED_MASK) as usize;
+        let w2 = log & FIXED_MASK;
         let w1 = FIXED_MASK + 1 - w2;
-        let (pr1,pr2) = self.prob.mut_split_at((log>>FIXED_BASE)+1);
-        let (m1,m2) = (pr1.mut_last().unwrap(), &mut pr2[0]);
+        let (pr1,pr2) = self.prob.split_at_mut((log>>FIXED_BASE) as usize + 1);
+        let (m1,m2) = (pr1.last_mut().unwrap(), &mut pr2[0]);
         // encode
-        for (i,(b1,b2)) in m1.mut_iter().zip(m2.mut_iter()).enumerate().rev() {
+        for (i,(b1,b2)) in m1.iter_mut().zip(m2.iter_mut()).enumerate().rev() {
             let value = dist & (1<<i) != 0;
-            let flat = (w1*(b1.to_flat() as usize) + w2*(b2.to_flat() as usize)) >> FIXED_BASE;
+            let flat = (w1 * (b1.to_flat() as u32) + w2 * (b2.to_flat() as u32)) >> FIXED_BASE;
             let bit = ari::apm::Bit::from_flat(flat as ari::apm::FlatProbability);
             eh.encode(value, &bit).unwrap();
             b1.update(value, BIT_UPDATE, 0);
@@ -80,13 +80,13 @@ impl super::DistanceModel for Model {
     fn decode<R: io::Read>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
-        let w2 = (log & FIXED_MASK) as usize;
+        let w2 = log & FIXED_MASK;
         let w1 = FIXED_MASK + 1 - w2;
-        let (pr1,pr2) = self.prob.mut_split_at((log>>FIXED_BASE)+1);
-        let (m1,m2) = (pr1.mut_last().unwrap(), &mut pr2[0]);
+        let (pr1,pr2) = self.prob.split_at_mut((log>>FIXED_BASE) as usize + 1);
+        let (m1,m2) = (pr1.last_mut().unwrap(), &mut pr2[0]);
         // decode
-        let dist = m1.mut_iter().zip(m2.mut_iter()).rev().fold(0 as super::Distance, |u,(b1,b2)| {
-            let flat = (w1*(b1.to_flat() as usize) + w2*(b2.to_flat() as usize)) >> FIXED_BASE;
+        let dist = m1.iter_mut().zip(m2.iter_mut()).rev().fold(0 as super::Distance, |u,(b1,b2)| {
+            let flat = (w1 * (b1.to_flat() as u32) + w2 * (b2.to_flat() as u32)) >> FIXED_BASE;
             let bit = ari::apm::Bit::from_flat(flat as ari::apm::FlatProbability);
             let value = dh.decode(&bit).unwrap();
             b1.update(value, BIT_UPDATE, 0);
