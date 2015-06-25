@@ -187,7 +187,7 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
     // Scan to compute the interim s1.
     let mut pre_pos = 0usize;
     let mut pre_len = 0usize;
-    let mut name = !0usize;
+    let mut name = -1;
     for suf in input_new.iter() {
         let pos = *suf as usize;
         let len = get_lms_length(&input[pos..]);
@@ -205,7 +205,7 @@ fn name_substr<T: Eq + Ord>(sa_new: &mut [Suffix], input_new: &mut [Suffix], inp
         *value = *iter.find(|&v| *v != SUF_INVALID).unwrap();
     }
 
-    name + 1
+    (name + 1) as usize
 }
 
 fn gather_lms<T: Eq + Ord>(input_new: &mut [Suffix], input: &[T]) {
@@ -349,12 +349,12 @@ pub struct Constructor {
 impl Constructor {
     /// Create a new instance for a given maximum input size
     pub fn new(max_n: usize) -> Constructor {
-        use std::cmp;
+        use std::{cmp, iter};
         let extra_2s = (1usize<<15) + (1usize<<7);
         let extra = 0x100 + cmp::max(max_n/4, cmp::min(extra_2s, max_n/2));
         info!("n: {}, extra words: {}", max_n, extra);
         Constructor {
-            suffixes: Some(0 as Suffix).into_iter().fuse().take(max_n+extra).collect(),
+            suffixes: iter::repeat(0 as Suffix).take(max_n+extra).collect(),
             n       : max_n,
         }
     }
