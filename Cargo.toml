@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
 license = "MIT/Apache-2.0"
 
+[features]
+default = []
+unstable = []
+
 [[bin]]
 name = "dark"
 
@@ -13,3 +17,6 @@ compress = "0.1"
 getopts = "*"
 log = "*"
 num = "*"
+
+[dev_dependencies]
+rand = "*"

@@ -71,48 +71,47 @@ impl DistanceModel for RawOut {
 #[cfg(test)]
 pub mod test {
     use std::io;
-    use std::vec::Vec;
-    use std::rand::{Rng, StdRng};
+    use rand::{Rng, StdRng};
     use compress::entropy::ari;
     use super::{Context, Distance, DistanceModel};
     use super::Symbol;
 
     fn roundtrip<M: DistanceModel>(input: &[(Distance,Context)]) {
         let mut m: M = DistanceModel::new_default();
-        let mut eh = ari::Encoder::new(io::MemWriter::new());
+        let mut eh = ari::Encoder::new(Vec::new());
         m.reset();
-        for &(dist,ctx) in input.iter() {
+        for &(dist, ref ctx) in input.iter() {
             debug!("Encode: {}", dist);
-            m.encode(dist, &ctx, &mut eh);
+            m.encode(dist, ctx, &mut eh);
         }
         let (mem, err) = eh.finish();
         err.unwrap();
         m.reset();
-        let mut dh = ari::Decoder::new(io::BufReader::new(mem.get_ref()));
-        for &(dist,ctx) in input.iter() {
-            let d2 = m.decode(&ctx, &mut dh);
+        let mut dh = ari::Decoder::new(io::BufReader::new(io::Cursor::new(&mem[..])));
+        for &(dist, ref ctx) in input.iter() {
+            let d2 = m.decode(ctx, &mut dh);
             debug!("Actual: {}, Decoded: {}", dist, d2);
             assert_eq!(d2, dist);
         }
     }
 
-    fn gen_data(size: uint, max_dist: Distance) -> Vec<(Distance,Context)> {
+    fn gen_data(size: usize, max_dist: Distance) -> Vec<(Distance,Context)> {
         let mut rng = StdRng::new().unwrap();
-        Vec::from_fn(size, |_| {
+        (0..size).map(|_| {
             let sym: Symbol = rng.gen();
-            let ctx = Context::new(sym, 0, max_dist as uint);
+            let ctx = Context::new(sym, 0, max_dist as usize);
             (rng.gen_range(0, max_dist), ctx)
-        })
+        }).collect()
     }
 
     fn roundtrips<M: DistanceModel>() {
-        roundtrip::<M>([
+        roundtrip::<M>(&[
             (1, Context::new(1,1,5)),
             (2, Context::new(2,2,5)),
             (3, Context::new(3,3,5)),
             (4, Context::new(4,4,5))
-            ].as_slice());
-        roundtrip::<M>(gen_data(1000,200).as_slice());
+            ]);
+        roundtrip::<M>(&gen_data(1000,200));
     }
     
     #[test]

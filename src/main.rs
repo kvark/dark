@@ -10,8 +10,6 @@ extern crate log;
 extern crate num;
 #[cfg(test)]
 extern crate rand;
-#[cfg(test)]
-extern crate test;
 
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::{env, io};

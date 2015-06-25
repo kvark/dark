@@ -386,7 +386,7 @@ impl Constructor {
 
 #[cfg(test)]
 pub mod test {
-    use std::vec::Vec;
+    #[cfg(feature="unstable")]
     use test::Bencher;
     use compress::bwt;
 
@@ -394,13 +394,13 @@ pub mod test {
         let mut con = super::Constructor::new(input.len());
         let (output, origin) = {
             let suf = con.compute(input);
-            assert_eq!(&suf, suf_expected);
+            assert_eq!(&suf[..], suf_expected);
             let mut iter = bwt::TransformIterator::new(input, suf);
-            let out: Vec<super::Symbol> = iter.collect();
+            let out: Vec<super::Symbol> = iter.by_ref().collect();
             (out, iter.get_origin())
         };
         assert_eq!(origin, origin_expected);
-        assert_eq!(&output, out_expected);
+        assert_eq!(&output[..], out_expected);
         let suf = &mut con.reuse()[.. input.len()];
         let decoded: Vec<super::Symbol> = bwt::decode(&output, origin, suf).collect();
         assert_eq!(&input[..], &decoded[..]);
@@ -408,8 +408,8 @@ pub mod test {
 
     #[test]
     fn detailed() {
-        some_detail(bytes!("abracadabra"), [10,7,0,3,5,8,1,4,6,9,2], 2, bytes!("rdarcaaaabb"));
-        some_detail(bytes!("banana"), [5,3,1,0,4,2], 3, bytes!("nnbaaa"));
+        some_detail(b"abracadabra", &[10,7,0,3,5,8,1,4,6,9,2], 2, b"rdarcaaaabb");
+        some_detail(b"banana", &[5,3,1,0,4,2], 3, b"nnbaaa");
     }
 
     fn some_roundtrip(input: &[super::Symbol]) {
@@ -417,7 +417,7 @@ pub mod test {
         let (output, origin) = {
             let suf = con.compute(input);
             let mut iter = bwt::TransformIterator::new(input, suf);
-            let out: Vec<super::Symbol> = iter.collect();
+            let out: Vec<super::Symbol> = iter.by_ref().collect();
             (out, iter.get_origin())
         };
         let decoded: Vec<super::Symbol> =
@@ -428,13 +428,14 @@ pub mod test {
 
     #[test]
     fn roundtrips() {
-        some_roundtrip(include_bin!("../LICENSE"));
+        some_roundtrip(include_bytes!("../LICENSE"));
         //some_roundtrip(include_bin!("../bin/dark"));
     }
 
+    #[cfg(feature="unstable")]
     #[bench]
     fn speed(bh: &mut Bencher) {
-        let input = include_bin!("../LICENSE");
+        let input = include_bytes!("../LICENSE");
         let mut con = super::Constructor::new(input.len());
         bh.iter(|| {
             con.compute(input);

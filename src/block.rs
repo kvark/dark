@@ -171,30 +171,33 @@ impl<M: DistanceModel> Decoder<M> {
 #[cfg(test)]
 pub mod test {
     use std::io;
-    use std::vec::Vec;
+    #[cfg(feature="unstable")]
+    use std::iter::repeat;
+    #[cfg(feature="unstable")]
     use test::Bencher;
-    use super::super::model::{DistanceModel, exp, ybs};
+    use model::{DistanceModel, exp, ybs};
 
     fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
-        let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, io::MemWriter::new());
+        let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, Vec::new());
         err.unwrap();
-        let reader = io::BufReader::new(writer.get_ref());
-        let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, io::MemWriter::new());
+        let reader = io::BufReader::new(io::Cursor::new(&writer[..]));
+        let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, Vec::new());
         err.unwrap();
-        assert_eq!(&bytes[..], output.get_ref());
+        assert_eq!(&bytes[..], &output[..]);
     }
 
     #[test]
     fn roundtrips() {
-        roundtrip::<exp::Model>(bytes!("abracababra"));
-        roundtrip::<exp::Model> (include_bin!("../lib/compress/data/test.txt"));
-        roundtrip::<ybs::Model> (include_bin!("../lib/compress/data/test.txt"));
+        roundtrip::<exp::Model>(b"abracababra");
+        roundtrip::<exp::Model>(include_bytes!("../LICENSE"));
+        roundtrip::<ybs::Model>(include_bytes!("../LICENSE"));
     }
 
+    #[cfg(feature="unstable")]
     #[bench]
     fn encode_speed(bh: &mut Bencher) {
-        let input = include_bin!("../lib/compress/data/test.txt");
-        let mut buffer = Vec::from_elem(input.len(), 0u8);
+        let input = include_bytes!("../LICENSE");
+        let mut buffer: Vec<_> = repeat(0u8).take(input.len()).collect();
         let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
         bh.iter(|| {
             let (_, err) = encoder.encode(input, io::BufWriter::new(&mut buffer));
@@ -203,19 +206,20 @@ pub mod test {
         bh.bytes = input.len() as u64;
     }
 
+    #[cfg(feature="unstable")]
     #[bench]
     fn decode_speed(bh: &mut Bencher) {
-        let input = include_bin!("../lib/compress/data/test.txt");
+        let input = include_bytes!("../LICENSE");
         let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
         encoder.model.reset();
-        let (writer, err) = encoder.encode(input, io::MemWriter::new());
+        let (writer, err) = encoder.encode(input, Vec::new());
         err.unwrap();
-        let mut buffer = Vec::from_elem(input.len(), 0u8);
+        let mut buffer: Vec<_> = repeat(0u8).take(input.len()).collect();
         let mut decoder = super::Decoder::<ybs::Model>::new(input.len());
         bh.iter(|| {
             decoder.model.reset();
             let (_, _, err) = decoder.decode(
-                io::BufReader::new(writer.get_ref()),
+                io::BufReader::new(io::Cursor::new(&writer[..])),
                 io::BufWriter::new(&mut buffer));
             err.unwrap();
         });
