@@ -10,6 +10,8 @@ pub use compress::bwt::dc::Context;
 use std::io;
 use std::fs::File;
 
+/// A copy of `bbb` model
+pub mod bbb;
 /// Old Dark-0.51 model
 pub mod dark;
 /// Original BWT-DC compression model

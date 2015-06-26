@@ -68,6 +68,7 @@ pub fn main() {
         info!("Decoding N: {}", n);
         // decode the block
         let (_, _, err) = match model.as_ref() {
+            "bbb"   => block::Decoder::<model::bbb::Model>      ::new(n).decode(in_file, out_file),
             "dark"  => block::Decoder::<model::dark::Model>     ::new(n).decode(in_file, out_file),
             "exp"   => block::Decoder::<model::exp::Model>      ::new(n).decode(in_file, out_file),
             "raw"   => block::Decoder::<model::RawOut>          ::new(n).decode(in_file, out_file),
@@ -96,6 +97,7 @@ pub fn main() {
         out_file.write_u32::<LittleEndian>(n as u32).unwrap();
         // encode the block
         let (_, err) = match model.as_ref() {
+            "bbb"   => block::Encoder::<model::bbb::Model>      ::new(n).encode(&input, out_file),
             "dark"  => block::Encoder::<model::dark::Model>     ::new(n).encode(&input, out_file),
             "exp"   => block::Encoder::<model::exp::Model>      ::new(n).encode(&input, out_file),
             "raw"   => block::Encoder::<model::RawOut>          ::new(n).encode(&input, out_file),
