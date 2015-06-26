@@ -62,7 +62,7 @@ void Ptax::Perform(int *r, uchar *bin, int n)	{
 	for(int i=0; i<256; i++)
 		sym[i].fir = las[i] = -1;
 	num = 0; arm = 0; was = -1;
-	int cp,mp=0,cs=bin[0]; //main cycle
+	int cp,cs=bin[0]; //main cycle
 	memset(rb,0,sizeof(int)<<8);
 	memset(r,-1,n*sizeof(int));
 	bin[n] = bin[n-1]^1;

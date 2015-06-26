@@ -20,10 +20,10 @@ LDLIBS				=
 
 all: $(TARGET)
 $(TARGET): src/*.h src/*.cpp $(MAKEFILE)
-	$(CC) -m32 -ggdb -o $(TARGET) $(LDFLAGS) src/*.cpp
+	$(CC) -m32 -ggdb -o $(TARGET) $(CFLAGS) $(LDFLAGS) src/*.cpp
 
 verb: $(TARGET)
-	$(CC) -m32 -ggdb -o bin/verb $(LDFLAGS) -DVERBOSE src/*.cpp
+	$(CC) -m32 -ggdb -o bin/verb $(CFLAGS) $(LDFLAGS) -DVERBOSE src/*.cpp
 
 distclean: clean
 clean:

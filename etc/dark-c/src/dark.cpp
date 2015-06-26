@@ -42,7 +42,7 @@ char call_format[] =
 State st;
 
 int main(int argc,char *argv[])	{
-	Clip clip; long t0=clock();
+	Clip clip;
 	setbuf(stdout,NULL);
 	printf("Dark v0.51\t(C)kvark, 2006");
 	printf("\nAdvanced command line BWT-DC compressor");
@@ -54,7 +54,6 @@ int main(int argc,char *argv[])	{
 	}else if(argv[1][0] == 'u')	{
 		clip.DecodeFile(argv[2]);
 	}else stopme("\nUnknow command!",0);
-	t0 = 1000*(clock()-t0)/CLOCKS_PER_SEC;
-	printf("\nTime wasted: %d.%3ds\n",t0/1000,t0%1000);
+	printf("\nDone.\n");
 	return 0;
 }

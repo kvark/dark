@@ -1,5 +1,3 @@
-#define NDEBUG
-
 #include <stdio.h>
 #include <time.h>
 #include <memory.h>

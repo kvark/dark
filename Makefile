@@ -6,7 +6,7 @@ all:
 	cargo build --release
 
 old:
-	cd etc/dark-c && make
+	(cd etc/dark-c && make)
 
 bin/profile: all
 	rustc -O -g1 -L lib -o bin/profile src/main.rs
@@ -18,6 +18,11 @@ pack-%: all
 	cmp data/book1 book1.orig
 	rm book1.*
 
+compare: all old
+	/usr/bin/time etc/dark-c/bin/dark p-r data/book1
+	rm book1.dark
+	/usr/bin/time $(EXE) -m dark data/book1
+	rm book1.dark
 
 profile-saca: etc/callgrind/saca.out
 profile: etc/callgrind/dark.out

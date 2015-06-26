@@ -171,7 +171,7 @@ int median(int a,int b,int c,uchar bof[])	{
 void ray(int *A, int *B, register uchar *boff)	{
 	register int *x,*y,*z;
 	while(B-A > INSERT)	{
-		int s = median(A[0],A[B-A>>1],B[-1],boff);
+		int s = median(A[0],A[(B-A)>>1],B[-1],boff);
 		ulong w = p4b(s+boff);
 		x=y=A; z=B; do	{
 			ulong q = p4b((s=*y)+boff);
