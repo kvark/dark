@@ -1,19 +1,15 @@
 ## Dark compressor
 
-[![Build Status](https://travis-ci.org/kvark/dark.png?branch=master)](https://travis-ci.org/kvark/dark) [![Stories in Ready](https://badge.waffle.io/kvark/dark.png?label=ready&title=Ready)](https://waffle.io/kvark/dark)
-```
-git clone --recursive https://github.com/kvark/dark
-cd dark
-make
-```
+[![Build Status](https://travis-ci.org/kvark/dark.png?branch=master)](https://travis-ci.org/kvark/dark)
+[![Crate](http://meritbadge.herokuapp.com/dark)](https://crates.io/crates/dark)
 
 Dark aims to be a practical lossless universal data compressor. By combining the security of [Rust](http://rust-lang.com) with the state of art BWT implementation and compression techniques, Dark aims to be the trust-worthy tool for your day-to-day compression needs.
 
-It requires [rust-compress](http://github.com/alexcrichton/rust-compress), and is developed in cooperation with this wonderful library.
+It uses [rust-compress](http://github.com/alexcrichton/rust-compress), and is developed in cooperation with this library. Chunks of logic migrate into rust-compress upon stabilization (arithmetic tables, DC, soon linear BWT).
 
 ### Current status
 
-The compressor can successfully pack and unpack any data in linear time, including the self executable. The following areas are being worked on:
+The compressor can successfully pack and unpack any data in linear time, including the self executable. Memory consumtion is `5N` extra bytes. The following areas are being worked on:
 
 * SACA optimization (BWT forward speed)
 * Range/Binary coder optimization (pack/unpack speed)
@@ -21,4 +17,4 @@ The compressor can successfully pack and unpack any data in linear time, includi
 
 ### Base line
 
-The latest C-version of Dark-0.51 is replicated 1-to-1 here as the Dark compression model. It narrows down _book1_ to just 214445 bytes. Source of Dark-0.51 is also included in "etc/dark-c/", it was adopted to be multi-platform and include verbose logging.
+The latest C-version of Dark-0.51 is replicated 1-to-1 here as the Dark compression model. However, due to improvements on the low level (entropy coder), the new implementation performs better (2144445 vs 215505 on _book1_). The source of Dark-0.51 is also provided in `etc/dark-c/`, it was adopted to be multi-platform and includes verbose logging.
