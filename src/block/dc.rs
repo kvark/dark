@@ -1,6 +1,6 @@
 /*!
 
-Block encoding/decoding routines
+DC-based block encoding/decoding routines
 
 */
 
@@ -9,98 +9,8 @@ use std::io;
 
 use compress::bwt;
 use compress::entropy::ari;
-use model::{Distance, DistanceModel, Model, RawModel, Symbol};
+use model::{Distance, DistanceModel};
 use saca;
-
-
-/// Raw BWT output encoder
-pub struct RawEncoder<M> {
-    sac: saca::Constructor,
-    /// Raw encoding model
-    pub model: M,
-}
-
-impl<M: RawModel> RawEncoder<M> {
-    /// Create a new RawEncoder instance
-    pub fn new(n: usize, mut model: M) -> RawEncoder<M> {
-        model.reset();
-        RawEncoder {
-            sac     : saca::Constructor::new(n),
-            model   : model,
-        }
-    }
-
-    /// Encode a block into a given writer
-    pub fn encode<W: io::Write>(&mut self, input: &[u8], writer: W) -> (W, io::Result<()>) {
-        let block_size = input.len();
-        assert!(block_size <= self.sac.capacity());
-        // perform BWT and DC
-        let (output, origin) = {
-            let suf = self.sac.compute(input);
-            let mut iter = bwt::TransformIterator::new(input, suf);
-            let out: Vec<u8> = iter.by_ref().collect();
-            (out, iter.get_origin())
-        };
-        let mut eh = ari::Encoder::new(writer);
-        // encode origin
-        info!("Origin: {}", origin);
-        self.model.encode((origin>>24) as Symbol, &(), &mut eh);
-        self.model.encode((origin>>16) as Symbol, &(), &mut eh);
-        self.model.encode((origin>>8)  as Symbol, &(), &mut eh);
-        self.model.encode(origin as Symbol, &(), &mut eh);
-        // encode symbols
-        for sym in output.iter() {
-            self.model.encode(*sym as Symbol, &(), &mut eh);
-        }
-        // done
-        print_stats(&eh);
-        eh.finish()
-    }
-}
-
-/// Raw BWT output decoder
-pub struct RawDecoder<M> {
-    input       : Vec<u8>,
-    suffixes    : Vec<saca::Suffix>,
-    /// Raw decoding model
-    pub model   : M,
-}
-
-impl<M: RawModel> RawDecoder<M> {
-    /// Create a new RawDecoder instance
-    pub fn new(n: usize, mut model: M) -> RawDecoder<M> {
-        use std::iter::repeat;
-        model.reset();
-        RawDecoder {
-            input   : repeat(0u8).take(n).collect(),
-            suffixes: repeat(0 as saca::Suffix).take(n).collect(),
-            model   : model,
-        }
-    }
-
-    /// Decode a block by reading from a given Reader into some Writer
-    pub fn decode<R: io::Read, W: io::Write>(&mut self, reader: R, mut writer: W) -> (R, W, io::Result<()>) {
-        let mut dh = ari::Decoder::new(reader);
-        // decode origin
-        let origin =
-            ((self.model.decode(&(), &mut dh) as usize) << 24) |
-            ((self.model.decode(&(), &mut dh) as usize) << 16) |
-            ((self.model.decode(&(), &mut dh) as usize) << 8)  |
-            ((self.model.decode(&(), &mut dh) as usize));
-        info!("Origin: {}", origin);
-        // decode symbols
-        for sym in self.input.iter_mut() {
-            *sym = self.model.decode(&(), &mut dh);
-        }
-        // undo BWT and write output
-        for b in bwt::decode(&self.input, origin, &mut self.suffixes) {
-            writer.write_u8(b).unwrap();
-        }
-        let result = writer.flush();
-        let (r, err) = dh.finish();
-        (r, writer, result.and(err))
-    }
-}
 
 
 const CTX_0: bwt::dc::Context = bwt::dc::Context {
@@ -113,17 +23,6 @@ pub struct Encoder<M> {
     mtf: bwt::mtf::MTF,
     /// Distance encoding model
     pub model: M,
-}
-
-#[cfg(feature="tune")]
-fn print_stats<W: io::Write>(eh: &ari::Encoder<W>) {
-    let (b0, b1) = eh.get_bytes_lost();
-    info!("Bytes lost on threshold cut: {}, on divisions: {}", b0, b1);
-}
-
-#[cfg(not(feature="tune"))]
-fn print_stats<W: io::Write>(_eh: &ari::Encoder<W>) {
-    //empty
 }
 
 impl<M: DistanceModel> Encoder<M> {
@@ -186,7 +85,7 @@ impl<M: DistanceModel> Encoder<M> {
         // done
         info!("Origin: {}", origin);
         self.model.encode(origin as Distance, &CTX_0, &mut eh);
-        print_stats(&eh);
+        super::print_stats(&eh);
         eh.finish()
     }
 }
@@ -269,6 +168,8 @@ pub mod test {
     use test::Bencher;
     use model::{DistanceModel, exp, ybs};
 
+    const TEXT: &'static [u8] = include_bytes!("../../LICENSE");
+
     fn roundtrip<M: DistanceModel>(model: M, bytes: &[u8]) {
         let mut enc = super::Encoder::new(bytes.len(), model);
         let (writer, err) = enc.encode(bytes, Vec::new());
@@ -283,14 +184,14 @@ pub mod test {
     #[test]
     fn roundtrips() {
         roundtrip(exp::Model::new(), b"abracababra");
-        roundtrip(exp::Model::new(), include_bytes!("../LICENSE"));
-        roundtrip(ybs::Model::new(), include_bytes!("../LICENSE"));
+        roundtrip(exp::Model::new(), TEXT);
+        roundtrip(ybs::Model::new(), TEXT);
     }
 
     #[cfg(feature="unstable")]
     #[bench]
     fn encode_speed(bh: &mut Bencher) {
-        let input = include_bytes!("../LICENSE");
+        let input = TEXT;
         let mut buffer: Vec<_> = repeat(0u8).take(input.len()).collect();
         let mut encoder = super::Encoder::new(input.len(), ybs::Model::new());
         bh.iter(|| {
@@ -303,7 +204,7 @@ pub mod test {
     #[cfg(feature="unstable")]
     #[bench]
     fn decode_speed(bh: &mut Bencher) {
-        let input = include_bytes!("../LICENSE");
+        let input = TEXT;
         let mut encoder = super::Encoder::new(input.len(), ybs::Model::new());
         encoder.model.reset();
         let (writer, err) = encoder.encode(input, Vec::new());
