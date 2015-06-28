@@ -25,6 +25,8 @@ pub mod ybs;
 pub type Distance = u32;
 /// Symbol type
 pub type Symbol = u8;
+/// Symbol encoding context //TODO
+pub type SymContext = ();
 
 /// An abstract BWT output encoding model (BWT-???-Ari)
 pub trait Model<T, C> {
@@ -39,6 +41,10 @@ pub trait Model<T, C> {
 /// A generic BWT-DC output coding model
 pub trait DistanceModel: Model<Distance, dc::Context> {}
 impl<M: Model<Distance, dc::Context>> DistanceModel for M {}
+
+/// A generic BWT raw output coding model
+pub trait RawModel: Model<Symbol, SymContext> {}
+impl<M: Model<Symbol, SymContext>> RawModel for M {}
 
 /// Raw (Sym,Dist) pairs output
 pub struct RawOut {
