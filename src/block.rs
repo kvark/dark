@@ -38,11 +38,12 @@ fn print_stats<W: io::Write>(_eh: &ari::Encoder<W>) {
 
 impl<M: DistanceModel> Encoder<M> {
     /// Create a new Encoder instance
-    pub fn new(n: usize) -> Encoder<M> {
+    pub fn new(n: usize, mut model: M) -> Encoder<M> {
+        model.reset();
         Encoder {
             sac     : saca::Constructor::new(n),
             mtf     : bwt::mtf::MTF::new(),
-            model   : DistanceModel::new_default(),
+            model   : model,
         }
     }
 
@@ -112,13 +113,14 @@ pub struct Decoder<M> {
 
 impl<M: DistanceModel> Decoder<M> {
     /// Create a new decoder instance
-    pub fn new(n: usize) -> Decoder<M> {
+    pub fn new(n: usize, mut model: M) -> Decoder<M> {
         use std::iter::repeat;
+        model.reset();
         Decoder {
             input   : repeat(0u8).take(n).collect(),
             suffixes: repeat(0 as saca::Suffix).take(n).collect(),
             mtf     : bwt::mtf::MTF::new(),
-            model   : DistanceModel::new_default(),
+            model   : model,
         }
     }
 
@@ -177,20 +179,22 @@ pub mod test {
     use test::Bencher;
     use model::{DistanceModel, exp, ybs};
 
-    fn roundtrip<M: DistanceModel>(bytes: &[u8]) {
-        let (writer, err) = super::Encoder::<M>::new(bytes.len()).encode(bytes, Vec::new());
+    fn roundtrip<M: DistanceModel>(model: M, bytes: &[u8]) {
+        let mut enc = super::Encoder::new(bytes.len(), model);
+        let (writer, err) = enc.encode(bytes, Vec::new());
         err.unwrap();
         let reader = io::BufReader::new(io::Cursor::new(&writer[..]));
-        let (_, output, err) = super::Decoder::<M>::new(bytes.len()).decode(reader, Vec::new());
+        let mut dec = super::Decoder::new(bytes.len(), enc.model);
+        let (_, output, err) = dec.decode(reader, Vec::new());
         err.unwrap();
         assert_eq!(&bytes[..], &output[..]);
     }
 
     #[test]
     fn roundtrips() {
-        roundtrip::<exp::Model>(b"abracababra");
-        roundtrip::<exp::Model>(include_bytes!("../LICENSE"));
-        roundtrip::<ybs::Model>(include_bytes!("../LICENSE"));
+        roundtrip(exp::Model::new(), b"abracababra");
+        roundtrip(exp::Model::new(), include_bytes!("../LICENSE"));
+        roundtrip(ybs::Model::new(), include_bytes!("../LICENSE"));
     }
 
     #[cfg(feature="unstable")]
@@ -198,7 +202,7 @@ pub mod test {
     fn encode_speed(bh: &mut Bencher) {
         let input = include_bytes!("../LICENSE");
         let mut buffer: Vec<_> = repeat(0u8).take(input.len()).collect();
-        let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
+        let mut encoder = super::Encoder::new(input.len(), ybs::Model::new());
         bh.iter(|| {
             let (_, err) = encoder.encode(input, io::BufWriter::new(&mut buffer));
             err.unwrap();
@@ -210,12 +214,12 @@ pub mod test {
     #[bench]
     fn decode_speed(bh: &mut Bencher) {
         let input = include_bytes!("../LICENSE");
-        let mut encoder = super::Encoder::<ybs::Model>::new(input.len());
+        let mut encoder = super::Encoder::new(input.len(), ybs::Model::new());
         encoder.model.reset();
         let (writer, err) = encoder.encode(input, Vec::new());
         err.unwrap();
         let mut buffer: Vec<_> = repeat(0u8).take(input.len()).collect();
-        let mut decoder = super::Decoder::<ybs::Model>::new(input.len());
+        let mut decoder = super::Decoder::new(input.len(), encoder.model);
         bh.iter(|| {
             decoder.model.reset();
             let (_, _, err) = decoder.decode(

@@ -5,7 +5,9 @@ A simple coding model to be a baseline for comparison
 */
 
 use std::{cmp, io};
+use compress::bwt::dc::Context;
 use compress::entropy::ari;
+use super::Distance;
 
 
 /// A pass-though byte frequency model
@@ -27,22 +29,25 @@ pub struct Model {
     up  : [usize; 4],
 }
 
-impl super::DistanceModel for Model {
-    fn new_default() -> Model {
+impl Model {
+    /// Create a new Model
+    pub fn new() -> Model {
         let threshold = ari::RANGE_DEFAULT_THRESHOLD >> 2;
         Model {
             freq: (0..4).map(|_| ari::table::Model::new_flat(0x100, threshold)).collect(),
             up  : [10,8,7,6],
         }
     }
+}
 
+impl super::Model<Distance, Context> for Model {
     fn reset(&mut self) {
         for table in self.freq.iter_mut() {
             table.reset_flat();
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: super::Distance, _ctx: &super::Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, _ctx: &Context, eh: &mut ari::Encoder<W>) {
         let val = cmp::min(0xFF, dist) as usize;
         eh.encode(val, &self.freq[0]).unwrap();
         self.freq[0].update(val, self.up[0], 1);
@@ -56,7 +61,7 @@ impl super::DistanceModel for Model {
         }
     }
 
-    fn decode<R: io::Read>(&mut self, _ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
+    fn decode<R: io::Read>(&mut self, _ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
         let base = dh.decode(&self.freq[0]).unwrap();
         self.freq[0].update(base, self.up[0], 1);
         let d = if base == 0xFF {
@@ -66,6 +71,6 @@ impl super::DistanceModel for Model {
                 u + (b<<(i*8))
             })
         }else {base};
-        d as super::Distance
+        d as Distance
     }
 }

@@ -15,7 +15,9 @@ Vadim Yoockin for sharing details of YBS implementation.
 */
 
 use std::{cmp, io};
+use compress::bwt::dc::Context;
 use compress::entropy::ari;
+use super::Distance;
 
 
 struct SymbolContext {
@@ -48,7 +50,7 @@ pub struct Model {
 
 impl Model {
     /// Create a new Model instance
-    pub fn new(threshold: ari::Border) -> Model {
+    pub fn new_custom(threshold: ari::Border) -> Model {
         let low_groups = 13usize;
         Model {
             table_log   : (0..low_groups).map(|_|
@@ -61,13 +63,14 @@ impl Model {
             contexts    : (0..0x100).map(|_| SymbolContext::new()).collect(),
         }
     }
+
+    /// Create a new default Model
+    pub fn new() -> Model {
+        Model::new_custom(ari::RANGE_DEFAULT_THRESHOLD >> 2)
+    }
 }
 
-impl super::DistanceModel for Model {
-    fn new_default() -> Model {
-        Model::new(ari::RANGE_DEFAULT_THRESHOLD >> 2)
-    }
-
+impl super::Model<Distance, Context> for Model {
     fn reset(&mut self) {
         for table in self.table_log.iter_mut() {
             table.reset_flat();
@@ -82,7 +85,7 @@ impl super::DistanceModel for Model {
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context, eh: &mut ari::Encoder<W>) {
         let max_low_log = self.table_log.len()-1;
         let group = if dist<4 {
             dist as usize
@@ -123,7 +126,7 @@ impl super::DistanceModel for Model {
         }
     }
 
-    fn decode<R: io::Read>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
+    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
         let max_low_log = self.table_log.len()-1;
         let context = &mut self.contexts[ctx.symbol as usize];
         let con_log = cmp::min(context.avg_log, max_low_log);
@@ -134,7 +137,7 @@ impl super::DistanceModel for Model {
         context.update(log_decoded);
         freq_log.update(log_decoded, 10, 1);
         if log_decoded < 4 {
-            return log_decoded as super::Distance
+            return log_decoded as Distance
         }
         let group = if log_decoded == max_low_log {
             let add = dh.decode(&self.table_high).unwrap();
@@ -153,7 +156,7 @@ impl super::DistanceModel for Model {
                 bc.update(bit);
                 bit
             };
-            dist = (dist<<1) + (bit as super::Distance);
+            dist = (dist<<1) + (bit as Distance);
         }
         dist
     }

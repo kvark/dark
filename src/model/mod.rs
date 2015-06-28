@@ -5,8 +5,8 @@ Various BWT-DC compression models
 */
 
 use byteorder::{LittleEndian, WriteBytesExt};
+use compress::bwt::dc;
 use compress::entropy::ari;
-pub use compress::bwt::dc::Context;
 use std::io;
 use std::fs::File;
 
@@ -26,37 +26,38 @@ pub type Distance = u32;
 /// Symbol type
 pub type Symbol = u8;
 
-
-/// A generic BWT-DC output coding model
-pub trait DistanceModel {
-    /// Create a new default instance
-    fn new_default() -> Self;
+/// An abstract BWT output encoding model (BWT-???-Ari)
+pub trait Model<T, C> {
     /// Reset current estimations
     fn reset(&mut self);
-    //TODO: return Result
-    /// Encode a distance for some symbol
-    fn encode<W: io::Write>(&mut self, Distance, &Context, &mut ari::Encoder<W>);
-    //TODO: return Result
-    /// Decode a distance for some symbol
-    fn decode<R: io::Read>(&mut self, &Context, &mut ari::Decoder<R>) -> Distance;
+    /// Encode an element //TODO: return Result
+    fn encode<W: io::Write>(&mut self, T, &C, &mut ari::Encoder<W>);
+    /// Decode an element //TODO: return Result
+    fn decode<R: io::Read>(&mut self, &C, &mut ari::Decoder<R>) -> T;
 }
 
+/// A generic BWT-DC output coding model
+pub trait DistanceModel: Model<Distance, dc::Context> {}
+impl<M: Model<Distance, dc::Context>> DistanceModel for M {}
 
 /// Raw (Sym,Dist) pairs output
 pub struct RawOut {
     out: File,
 }
 
-impl DistanceModel for RawOut {
-    fn new_default() -> RawOut {
+impl RawOut {
+    /// Create a new raw output model
+    pub fn new() -> RawOut {
         RawOut {
             out: File::create("out.raw").unwrap(),
         }
     }
+}
 
+impl Model<Distance, dc::Context> for RawOut {
     fn reset(&mut self) {}
 
-    fn encode<W: io::Write>(&mut self, d: Distance, c: &Context, _enc: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, d: Distance, c: &dc::Context, _enc: &mut ari::Encoder<W>) {
         debug!("Encoding raw distance {} for symbol {}", d, c.symbol);
         self.out.write_u32::<LittleEndian>(d).and(
             self.out.write_u8(c.symbol)).and(
@@ -64,7 +65,7 @@ impl DistanceModel for RawOut {
             self.out.write_u32::<LittleEndian>(c.distance_limit as u32)).unwrap();
     }
 
-    fn decode<R: io::Read>(&mut self, _c: &Context, _dec: &mut ari::Decoder<R>) -> Distance {
+    fn decode<R: io::Read>(&mut self, _c: &dc::Context, _dec: &mut ari::Decoder<R>) -> Distance {
         0   //not supported
     }
 }
@@ -74,12 +75,12 @@ impl DistanceModel for RawOut {
 pub mod test {
     use std::io;
     use rand::{Rng, StdRng};
+    use compress::bwt::dc;
     use compress::entropy::ari;
-    use super::{Context, Distance, DistanceModel};
+    use super::{Distance, DistanceModel};
     use super::Symbol;
 
-    fn roundtrip<M: DistanceModel>(input: &[(Distance,Context)]) {
-        let mut m: M = DistanceModel::new_default();
+    fn roundtrip<M: DistanceModel>(m: &mut M, input: &[(Distance, dc::Context)]) {
         let mut eh = ari::Encoder::new(Vec::new());
         m.reset();
         for &(dist, ref ctx) in input.iter() {
@@ -97,42 +98,42 @@ pub mod test {
         }
     }
 
-    fn gen_data(size: usize, max_dist: Distance) -> Vec<(Distance,Context)> {
+    fn gen_data(size: usize, max_dist: Distance) -> Vec<(Distance, dc::Context)> {
         let mut rng = StdRng::new().unwrap();
         (0..size).map(|_| {
             let sym: Symbol = rng.gen();
-            let ctx = Context::new(sym, 0, max_dist as usize);
+            let ctx = dc::Context::new(sym, 0, max_dist as usize);
             (rng.gen_range(0, max_dist), ctx)
         }).collect()
     }
 
-    fn roundtrips<M: DistanceModel>() {
-        roundtrip::<M>(&[
-            (1, Context::new(1,1,5)),
-            (2, Context::new(2,2,5)),
-            (3, Context::new(3,3,5)),
-            (4, Context::new(4,4,5))
+    fn roundtrips<M: DistanceModel>(mut m: M) {
+        roundtrip(&mut m, &[
+            (1, dc::Context::new(1,1,5)),
+            (2, dc::Context::new(2,2,5)),
+            (3, dc::Context::new(3,3,5)),
+            (4, dc::Context::new(4,4,5))
             ]);
-        roundtrip::<M>(&gen_data(1000,200));
+        roundtrip(&mut m, &gen_data(1000,200));
     }
     
     #[test]
     fn roundtrips_dark() {
-        roundtrips::<super::dark::Model>();
+        roundtrips(super::dark::Model::new());
     }
 
     #[test]
     fn roundtrips_exp() {
-        roundtrips::<super::exp::Model>();
+        roundtrips(super::exp::Model::new());
     }
 
     #[test]
     fn roundtrips_simple() {
-        roundtrips::<super::simple::Model>();
+        roundtrips(super::simple::Model::new());
     }
 
     #[test]
     fn roundtrips_ybs() {
-        roundtrips::<super::ybs::Model>();
+        roundtrips(super::ybs::Model::new());
     }
 }

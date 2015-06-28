@@ -5,7 +5,9 @@ Experimental BWT-DC compression model
 */
 
 use std::io;
+use compress::bwt::dc::Context;
 use compress::entropy::ari;
+use super::Distance;
 
 
 const FIXED_BASE    : u32 = 8;
@@ -29,7 +31,7 @@ impl Model {
         }
     }
 
-    fn get_log(d: super::Distance) -> u32 {
+    fn get_log(d: Distance) -> u32 {
         let du = d as u32;
         match d {
             0...2   => du << FIXED_BASE,
@@ -41,11 +43,7 @@ impl Model {
     }
 }
 
-impl super::DistanceModel for Model {
-    fn new_default() -> Model {
-        Model::new()
-    }
-
+impl super::Model<Distance, Context> for Model {
     fn reset(&mut self) {
         for log in self.avg_log.iter_mut() {
             *log = LOG_DEFAULT;
@@ -57,7 +55,7 @@ impl super::DistanceModel for Model {
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context, eh: &mut ari::Encoder<W>) {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
         let w2 = log & FIXED_MASK;
@@ -77,7 +75,7 @@ impl super::DistanceModel for Model {
         self.avg_log[ctx.symbol as usize] = (3*log + Model::get_log(dist)) >> 2;
     }
 
-    fn decode<R: io::Read>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
+    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
         let w2 = log & FIXED_MASK;
@@ -85,7 +83,7 @@ impl super::DistanceModel for Model {
         let (pr1,pr2) = self.prob.split_at_mut((log>>FIXED_BASE) as usize + 1);
         let (m1,m2) = (pr1.last_mut().unwrap(), &mut pr2[0]);
         // decode
-        let dist = m1.iter_mut().zip(m2.iter_mut()).rev().fold(0 as super::Distance, |u,(b1,b2)| {
+        let dist = m1.iter_mut().zip(m2.iter_mut()).rev().fold(0 as Distance, |u,(b1,b2)| {
             let flat = (w1 * (b1.to_flat() as u32) + w2 * (b2.to_flat() as u32)) >> FIXED_BASE;
             let bit = ari::apm::Bit::from_flat(flat as ari::apm::FlatProbability);
             let value = dh.decode(&bit).unwrap();

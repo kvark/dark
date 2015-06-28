@@ -16,7 +16,7 @@ use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::{env, io};
 use std::fs::File;
 use std::path;
-use model::DistanceModel;
+use model::Model;
 
 /// Block encoding/decoding logic
 pub mod block;
@@ -68,12 +68,12 @@ pub fn main() {
         info!("Decoding N: {}", n);
         // decode the block
         let (_, _, err) = match model.as_ref() {
-            "bbb"   => block::Decoder::<model::bbb::Model>      ::new(n).decode(in_file, out_file),
-            "dark"  => block::Decoder::<model::dark::Model>     ::new(n).decode(in_file, out_file),
-            "exp"   => block::Decoder::<model::exp::Model>      ::new(n).decode(in_file, out_file),
-            "raw"   => block::Decoder::<model::RawOut>          ::new(n).decode(in_file, out_file),
-            "simple"=> block::Decoder::<model::simple::Model>   ::new(n).decode(in_file, out_file),
-            "ybs"   => block::Decoder::<model::ybs::Model>      ::new(n).decode(in_file, out_file),
+            //"bbb"   => block::Decoder::new(n, model::bbb::Model   ::new()).decode(in_file, out_file),
+            "dark"  => block::Decoder::new(n, model::dark::Model  ::new()).decode(in_file, out_file),
+            "exp"   => block::Decoder::new(n, model::exp::Model   ::new()).decode(in_file, out_file),
+            "raw"   => block::Decoder::new(n, model::RawOut       ::new()).decode(in_file, out_file),
+            "simple"=> block::Decoder::new(n, model::simple::Model::new()).decode(in_file, out_file),
+            "ybs"   => block::Decoder::new(n, model::ybs::Model   ::new()).decode(in_file, out_file),
             _       => panic!("Unknown decoding model: {}", model)
         };
         err.unwrap();
@@ -97,12 +97,12 @@ pub fn main() {
         out_file.write_u32::<LittleEndian>(n as u32).unwrap();
         // encode the block
         let (_, err) = match model.as_ref() {
-            "bbb"   => block::Encoder::<model::bbb::Model>      ::new(n).encode(&input, out_file),
-            "dark"  => block::Encoder::<model::dark::Model>     ::new(n).encode(&input, out_file),
-            "exp"   => block::Encoder::<model::exp::Model>      ::new(n).encode(&input, out_file),
-            "raw"   => block::Encoder::<model::RawOut>          ::new(n).encode(&input, out_file),
-            "simple"=> block::Encoder::<model::simple::Model>   ::new(n).encode(&input, out_file),
-            "ybs"   => block::Encoder::<model::ybs::Model>      ::new(n).encode(&input, out_file),
+            //"bbb"   => block::Encoder::<model::bbb::Model>      ::new(n).encode(&input, out_file),
+            "dark"  => block::Encoder::new(n, model::dark::Model  ::new()).encode(&input, out_file),
+            "exp"   => block::Encoder::new(n, model::exp::Model   ::new()).encode(&input, out_file),
+            "raw"   => block::Encoder::new(n, model::RawOut       ::new()).encode(&input, out_file),
+            "simple"=> block::Encoder::new(n, model::simple::Model::new()).encode(&input, out_file),
+            "ybs"   => block::Encoder::new(n, model::ybs::Model   ::new()).encode(&input, out_file),
             _       => panic!("Unknown encoding model: {}", model)
         };
         err.unwrap();

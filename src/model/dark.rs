@@ -13,7 +13,9 @@ use std::{cmp, io};
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use num::{Float, NumCast};
+use compress::bwt::dc::Context;
 use compress::entropy::ari;
+use super::Distance;
 
 
 /// Aggregate frequency model of two sources
@@ -89,7 +91,7 @@ impl SymbolContext {
         self.freq_extra.reset();
     }
 
-    fn update(&mut self, dist: super::Distance, log_diff: isize) {
+    fn update(&mut self, dist: Distance, log_diff: isize) {
         let adapt = if log_diff < -6 {7}
         else if log_diff >= 3 {3}
         else { ADAPT_POWERS[(6+log_diff) as usize] };
@@ -116,7 +118,7 @@ pub struct Model {
 
 impl Model {
     /// Create a new Model instance
-    pub fn new(threshold: ari::Border) -> Model {
+    pub fn new_custom(threshold: ari::Border) -> Model {
         Model {
             freq_log: (0 .. MAX_LOG_CONTEXT + 1).map(|_|
                 (0..NUM_LAST_LOGS).map(|_|
@@ -142,18 +144,19 @@ impl Model {
         }
     }
 
-    fn isize_log(d: super::Distance) -> usize {
+    /// Create a new default Model
+    pub fn new() -> Model {
+        Model::new_custom(ari::RANGE_DEFAULT_THRESHOLD >> 2)
+    }
+
+    fn isize_log(d: Distance) -> usize {
         let mut log = 0;
         while d>>log !=0 {log += 1;}
         log
     }
 }
 
-impl super::DistanceModel for Model {
-    fn new_default() -> Model {
-        Model::new(ari::RANGE_DEFAULT_THRESHOLD >> 2)
-    }
-
+impl super::Model<Distance, Context> for Model {
     fn reset(&mut self) {
         for array in self.freq_log.iter_mut() {
             for table in array.iter_mut() {
@@ -174,11 +177,11 @@ impl super::DistanceModel for Model {
         self.last_log_token = 1;
     }
 
-    fn encode<W: io::Write>(&mut self, mut dist: super::Distance, ctx: &super::Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, mut dist: Distance, ctx: &Context, eh: &mut ari::Encoder<W>) {
         dist += 1;
         let log = Model::isize_log(dist);
         let context = &mut self.contexts[ctx.symbol as usize];
-        let avg_log = Model::isize_log(context.avg_dist as super::Distance);
+        let avg_log = Model::isize_log(context.avg_dist as Distance);
         let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
         // write exponent
         {   // base part
@@ -226,9 +229,9 @@ impl super::DistanceModel for Model {
         context.update(dist-1, log_diff);
     }
 
-    fn decode<R: io::Read>(&mut self, ctx: &super::Context, dh: &mut ari::Decoder<R>) -> super::Distance {
+    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
         let context = &mut self.contexts[ctx.symbol as usize];
-        let avg_log = Model::isize_log(context.avg_dist as super::Distance);
+        let avg_log = Model::isize_log(context.avg_dist as Distance);
         let avg_log_capped = cmp::min(MAX_LOG_CONTEXT, avg_log);
         // read exponent
         let log_pre = { // base part
@@ -260,7 +263,7 @@ impl super::DistanceModel for Model {
         self.last_log_token = if log<2 {0} else if log<8 {1} else {2};
         // read mantissa
         let mantissa_context = &mut self.freq_mantissa[log];
-        let mut dist = 1 as super::Distance;
+        let mut dist = 1 as Distance;
         for i in 1 .. log {
             let bit = if i > MAX_BIT_CONTEXT {
                 dh.decode( mantissa_context.last().unwrap() ).unwrap()
@@ -270,7 +273,7 @@ impl super::DistanceModel for Model {
                 bc.update(bit);
                 bit
             };
-            dist = (dist<<1) + (bit as super::Distance);
+            dist = (dist<<1) + (bit as Distance);
         }
         // update model
         let log_diff = (log as isize) - (avg_log_capped as isize);
