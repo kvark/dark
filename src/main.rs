@@ -52,6 +52,7 @@ pub fn main() {
     let input_path = path::Path::new(&matches.free[0]);
     let input_ext = input_path.extension();
     if input_ext.is_some() && input_ext.unwrap() == EXTENSION {
+        use block::Decoder;
         let mut in_file = match File::open(&input_path) {
             Ok(file) => io::BufReader::new(file),
             Err(e) => {
@@ -79,6 +80,7 @@ pub fn main() {
         err.unwrap();
     }else {
         use std::io::Read;
+        use block::Encoder;
         let mut input = Vec::new();
         let mut file = match File::open(&input_path) {
             Ok(f) => f,

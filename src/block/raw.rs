@@ -29,9 +29,10 @@ impl<M: RawModel> Encoder<M> {
             model   : model,
         }
     }
+}
 
-    /// Encode a block into a given writer
-    pub fn encode<W: io::Write>(&mut self, input: &[u8], writer: W) -> (W, io::Result<()>) {
+impl<M: RawModel> super::Encoder for Encoder<M> {
+	fn encode<W: io::Write>(&mut self, input: &[u8], writer: W) -> (W, io::Result<()>) {
         let block_size = input.len();
         assert!(block_size <= self.sac.capacity());
         // perform BWT and DC
@@ -77,9 +78,10 @@ impl<M: RawModel> Decoder<M> {
             model   : model,
         }
     }
+}
 
-    /// Decode a block by reading from a given Reader into some Writer
-    pub fn decode<R: io::Read, W: io::Write>(&mut self, reader: R, mut writer: W) -> (R, W, io::Result<()>) {
+impl<M: RawModel> super::Decoder for Decoder<M> {
+    fn decode<R: io::Read, W: io::Write>(&mut self, reader: R, mut writer: W) -> (R, W, io::Result<()>) {
         let mut dh = ari::Decoder::new(reader);
         // decode origin
         let origin =
