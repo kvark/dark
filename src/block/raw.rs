@@ -45,13 +45,13 @@ impl<M: RawModel> super::Encoder for Encoder<M> {
         let mut eh = ari::Encoder::new(writer);
         // encode origin
         info!("Origin: {}", origin);
-        self.model.encode((origin>>24) as Symbol, &(), &mut eh);
-        self.model.encode((origin>>16) as Symbol, &(), &mut eh);
-        self.model.encode((origin>>8)  as Symbol, &(), &mut eh);
-        self.model.encode(origin as Symbol, &(), &mut eh);
+        self.model.encode((origin>>24) as Symbol, &(), &mut eh).unwrap();
+        self.model.encode((origin>>16) as Symbol, &(), &mut eh).unwrap();
+        self.model.encode((origin>>8)  as Symbol, &(), &mut eh).unwrap();
+        self.model.encode(origin as Symbol, &(), &mut eh).unwrap();
         // encode symbols
         for sym in output.iter() {
-            self.model.encode(*sym as Symbol, &(), &mut eh);
+            self.model.encode(*sym as Symbol, &(), &mut eh).unwrap();
         }
         // done
         super::print_stats(&eh);
@@ -85,14 +85,14 @@ impl<M: RawModel> super::Decoder for Decoder<M> {
         let mut dh = ari::Decoder::new(reader);
         // decode origin
         let origin =
-            ((self.model.decode(&(), &mut dh) as usize) << 24) |
-            ((self.model.decode(&(), &mut dh) as usize) << 16) |
-            ((self.model.decode(&(), &mut dh) as usize) << 8)  |
-            ((self.model.decode(&(), &mut dh) as usize));
+            ((self.model.decode(&(), &mut dh).unwrap() as usize) << 24) |
+            ((self.model.decode(&(), &mut dh).unwrap() as usize) << 16) |
+            ((self.model.decode(&(), &mut dh).unwrap() as usize) << 8)  |
+            ((self.model.decode(&(), &mut dh).unwrap() as usize));
         info!("Origin: {}", origin);
         // decode symbols
         for sym in self.input.iter_mut() {
-            *sym = self.model.decode(&(), &mut dh);
+            *sym = self.model.decode(&(), &mut dh).unwrap();
         }
         // undo BWT and write output
         for b in bwt::decode(&self.input, origin, &mut self.suffixes) {

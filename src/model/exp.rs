@@ -55,7 +55,8 @@ impl super::Model<Distance, Context> for Model {
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context,
+              eh: &mut ari::Encoder<W>) -> io::Result<()> {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
         let w2 = log & FIXED_MASK;
@@ -67,15 +68,17 @@ impl super::Model<Distance, Context> for Model {
             let value = dist & (1<<i) != 0;
             let flat = (w1 * (b1.to_flat() as u32) + w2 * (b2.to_flat() as u32)) >> FIXED_BASE;
             let bit = ari::apm::Bit::from_flat(flat as ari::apm::FlatProbability);
-            eh.encode(value, &bit).unwrap();
+            try!(eh.encode(value, &bit));
             b1.update(value, BIT_UPDATE, 0);
             b2.update(value, BIT_UPDATE, 0);
         }
         // update
         self.avg_log[ctx.symbol as usize] = (3*log + Model::get_log(dist)) >> 2;
+        Ok(())
     }
 
-    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
+    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>)
+              -> io::Result<Distance> {
         // find context
         let log = self.avg_log[ctx.symbol as usize];
         let w2 = log & FIXED_MASK;
@@ -83,16 +86,17 @@ impl super::Model<Distance, Context> for Model {
         let (pr1,pr2) = self.prob.split_at_mut((log>>FIXED_BASE) as usize + 1);
         let (m1,m2) = (pr1.last_mut().unwrap(), &mut pr2[0]);
         // decode
-        let dist = m1.iter_mut().zip(m2.iter_mut()).rev().fold(0 as Distance, |u,(b1,b2)| {
+        let mut dist = 0 as Distance;
+        for (b1, b2) in m1.iter_mut().zip(m2.iter_mut()).rev() {
             let flat = (w1 * (b1.to_flat() as u32) + w2 * (b2.to_flat() as u32)) >> FIXED_BASE;
             let bit = ari::apm::Bit::from_flat(flat as ari::apm::FlatProbability);
-            let value = dh.decode(&bit).unwrap();
+            let value = try!(dh.decode(&bit));
             b1.update(value, BIT_UPDATE, 0);
             b2.update(value, BIT_UPDATE, 0);
-            (u<<1) + if value {1} else {0}
-        });
+            dist += dist + if value {1} else {0};
+        }
         // update
         self.avg_log[ctx.symbol as usize] = (3*log + Model::get_log(dist)) >> 2;
-        dist
+        Ok(dist)
     }
 }

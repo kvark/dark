@@ -85,7 +85,8 @@ impl super::Model<Distance, Context> for Model {
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, ctx: &Context,
+              eh: &mut ari::Encoder<W>) -> io::Result<()> {
         let max_low_log = self.table_log.len()-1;
         let group = if dist<4 {
             dist as usize
@@ -99,16 +100,16 @@ impl super::Model<Distance, Context> for Model {
         let freq_log = &mut self.table_log[con_log];
         // write exponent
         let log_encoded = cmp::min(group, max_low_log);
-        eh.encode(log_encoded, freq_log).unwrap();
+        try!(eh.encode(log_encoded, freq_log));
         // update model
         freq_log.update(log_encoded, 10, 1);
         context.update(log_encoded);    //use log?
         if group<4 {
-            return
+            return Ok(())
         }
         if group >= max_low_log {
             let add = group - max_low_log;
-            eh.encode(add, &self.table_high).unwrap();
+            try!(eh.encode(add, &self.table_high));
             self.table_high.update(add, 10, 1);
         }
         // write mantissa
@@ -117,30 +118,32 @@ impl super::Model<Distance, Context> for Model {
             let bit = (dist>>(log-i-1)) as usize & 1 != 0;
             if i >= self.bin_rest.len() {
                 // just send bits past the model, equally distributed
-                eh.encode(bit, self.bin_rest.last().unwrap()).unwrap();
+                try!(eh.encode(bit, self.bin_rest.last().unwrap()));
             }else {
                 let bc = &mut self.bin_rest[i-1];
-                eh.encode(bit, bc).unwrap();
+                try!(eh.encode(bit, bc));
                 bc.update(bit);
             };
         }
+        Ok(())
     }
 
-    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
+    fn decode<R: io::Read>(&mut self, ctx: &Context, dh: &mut ari::Decoder<R>)
+              -> io::Result<Distance> {
         let max_low_log = self.table_log.len()-1;
         let context = &mut self.contexts[ctx.symbol as usize];
         let con_log = cmp::min(context.avg_log, max_low_log);
         let freq_log = &mut self.table_log[con_log];
         // read exponent
-        let log_decoded = dh.decode(freq_log).unwrap();
+        let log_decoded = try!(dh.decode(freq_log));
         // update model
         context.update(log_decoded);
         freq_log.update(log_decoded, 10, 1);
         if log_decoded < 4 {
-            return log_decoded as Distance
+            return Ok(log_decoded as Distance)
         }
         let group = if log_decoded == max_low_log {
-            let add = dh.decode(&self.table_high).unwrap();
+            let add = try!(dh.decode(&self.table_high));
             self.table_high.update(add, 10, 1);
             max_low_log + add
         }else {log_decoded};
@@ -149,15 +152,15 @@ impl super::Model<Distance, Context> for Model {
         let mut dist = 1 as super::Distance;
         for i in 1 .. log {
             let bit = if i >= self.bin_rest.len() {
-                dh.decode( self.bin_rest.last().unwrap() ).unwrap()
+                try!(dh.decode( self.bin_rest.last().unwrap() ))
             }else {
                 let bc = &mut self.bin_rest[i-1];
-                let bit = dh.decode(bc).unwrap();
+                let bit = try!(dh.decode(bc));
                 bc.update(bit);
                 bit
             };
             dist = (dist<<1) + (bit as Distance);
         }
-        dist
+        Ok(dist)
     }
 }

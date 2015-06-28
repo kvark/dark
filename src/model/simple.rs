@@ -47,30 +47,35 @@ impl super::Model<Distance, Context> for Model {
         }
     }
 
-    fn encode<W: io::Write>(&mut self, dist: Distance, _ctx: &Context, eh: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, dist: Distance, _ctx: &Context,
+              eh: &mut ari::Encoder<W>) -> io::Result<()> {
         let val = cmp::min(0xFF, dist) as usize;
-        eh.encode(val, &self.freq[0]).unwrap();
+        try!(eh.encode(val, &self.freq[0]));
         self.freq[0].update(val, self.up[0], 1);
         if val == 0xFF {
             let rest = (dist - 0xFF) as usize;
             for i in 0usize .. 3 {
                 let b = (rest>>(i*8))&0xFF;
-                eh.encode(b, &self.freq[i+1]).unwrap();
+                try!(eh.encode(b, &self.freq[i+1]));
                 self.freq[i+1].update(b, self.up[i+1], 1);
             }
         }
+        Ok(())
     }
 
-    fn decode<R: io::Read>(&mut self, _ctx: &Context, dh: &mut ari::Decoder<R>) -> Distance {
-        let base = dh.decode(&self.freq[0]).unwrap();
+    fn decode<R: io::Read>(&mut self, _ctx: &Context, dh: &mut ari::Decoder<R>)
+              -> io::Result<Distance> {
+        let base = try!(dh.decode(&self.freq[0]));
         self.freq[0].update(base, self.up[0], 1);
         let d = if base == 0xFF {
-            (0usize .. 3).fold(base, |u,i| {
-                let b = dh.decode(&self.freq[i+1]).unwrap();
+            let mut u = base;
+            for i in 0 .. 3 {
+                let b = try!(dh.decode(&self.freq[i+1]));
                 self.freq[i+1].update(b, self.up[i+1], 1);
-                u + (b<<(i*8))
-            })
-        }else {base};
-        d as Distance
+                u += b << (i * 8);
+            }
+            u
+        }else { base };
+        Ok(d as Distance)
     }
 }

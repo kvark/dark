@@ -32,10 +32,10 @@ pub type SymContext = ();
 pub trait Model<T, C> {
     /// Reset current estimations
     fn reset(&mut self);
-    /// Encode an element //TODO: return Result
-    fn encode<W: io::Write>(&mut self, T, &C, &mut ari::Encoder<W>);
-    /// Decode an element //TODO: return Result
-    fn decode<R: io::Read>(&mut self, &C, &mut ari::Decoder<R>) -> T;
+    /// Encode an element
+    fn encode<W: io::Write>(&mut self, T, &C, &mut ari::Encoder<W>) -> io::Result<()>;
+    /// Decode an element
+    fn decode<R: io::Read>(&mut self, &C, &mut ari::Decoder<R>) -> io::Result<T>;
 }
 
 /// A generic BWT-DC output coding model
@@ -63,16 +63,17 @@ impl RawOut {
 impl Model<Distance, dc::Context> for RawOut {
     fn reset(&mut self) {}
 
-    fn encode<W: io::Write>(&mut self, d: Distance, c: &dc::Context, _enc: &mut ari::Encoder<W>) {
+    fn encode<W: io::Write>(&mut self, d: Distance, c: &dc::Context, _enc: &mut ari::Encoder<W>) -> io::Result<()> {
         debug!("Encoding raw distance {} for symbol {}", d, c.symbol);
-        self.out.write_u32::<LittleEndian>(d).and(
-            self.out.write_u8(c.symbol)).and(
-            self.out.write_u8(c.last_rank)).and(
-            self.out.write_u32::<LittleEndian>(c.distance_limit as u32)).unwrap();
+        try!(self.out.write_u32::<LittleEndian>(d));
+        try!(self.out.write_u8(c.symbol));
+        try!(self.out.write_u8(c.last_rank));
+        try!(self.out.write_u32::<LittleEndian>(c.distance_limit as u32));
+        Ok(())
     }
 
-    fn decode<R: io::Read>(&mut self, _c: &dc::Context, _dec: &mut ari::Decoder<R>) -> Distance {
-        0   //not supported
+    fn decode<R: io::Read>(&mut self, _c: &dc::Context, _dec: &mut ari::Decoder<R>) -> io::Result<Distance> {
+        Ok(0) //not supported
     }
 }
 
@@ -91,14 +92,14 @@ pub mod test {
         m.reset();
         for &(dist, ref ctx) in input.iter() {
             debug!("Encode: {}", dist);
-            m.encode(dist, ctx, &mut eh);
+            m.encode(dist, ctx, &mut eh).unwrap();
         }
         let (mem, err) = eh.finish();
         err.unwrap();
         m.reset();
         let mut dh = ari::Decoder::new(io::BufReader::new(io::Cursor::new(&mem[..])));
         for &(dist, ref ctx) in input.iter() {
-            let d2 = m.decode(ctx, &mut dh);
+            let d2 = m.decode(ctx, &mut dh).unwrap();
             debug!("Actual: {}, Decoded: {}", dist, d2);
             assert_eq!(d2, dist);
         }

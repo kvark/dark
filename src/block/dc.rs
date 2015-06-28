@@ -62,10 +62,10 @@ impl<M: DistanceModel> super::Encoder for Encoder<M> {
                     }
                     let num = (if base==0 {i} else {i-base-1}) as Distance;
                     debug!("Init fill num {}", num);
-                    self.model.encode(num, &CTX_0, &mut eh);
+                    self.model.encode(num, &CTX_0, &mut eh).unwrap();
                     for (sym,d) in dc_iter.get_init().iter().enumerate().skip(base).take(i-base) {
                         let ctx = bwt::dc::Context::new(sym as u8, 0, input.len());
-                        self.model.encode(*d as Distance, &ctx, &mut eh);
+                        self.model.encode(*d as Distance, &ctx, &mut eh).unwrap();
                         debug!("Init {} for {}", *d, sym);
                     }
                     cur_active = false;
@@ -73,7 +73,7 @@ impl<M: DistanceModel> super::Encoder for Encoder<M> {
                     while {i+=1; i<0xFF && dc_iter.get_init()[i] == block_size} {}
                     let num = (i-base-1) as Distance;
                     debug!("Init empty num {}", num);
-                    self.model.encode(num, &CTX_0, &mut eh);
+                    self.model.encode(num, &CTX_0, &mut eh).unwrap();
                     cur_active = true;
                 }
             }
@@ -81,11 +81,11 @@ impl<M: DistanceModel> super::Encoder for Encoder<M> {
         // encode distances
         for (d,ctx) in dc_iter {
             debug!("Distance {} for {}", d, ctx.symbol);
-            self.model.encode(d, &ctx, &mut eh);
+            self.model.encode(d, &ctx, &mut eh).unwrap();
         }
         // done
         info!("Origin: {}", origin);
-        self.model.encode(origin as Distance, &CTX_0, &mut eh);
+        self.model.encode(origin as Distance, &CTX_0, &mut eh).unwrap();
         super::print_stats(&eh);
         eh.finish()
     }
@@ -126,12 +126,12 @@ impl<M: DistanceModel> super::Decoder for Decoder<M> {
             let mut i = 0usize;
             while i<0xFF {
                 let add  = if i==0 && cur_active {0usize} else {1usize};
-                let num = model.decode(&CTX_0, &mut dh) as usize + add;
+                let num = model.decode(&CTX_0, &mut dh).unwrap() as usize + add;
                 debug!("Init num {}", num);
                 if cur_active {
                     for (sym,d) in init.iter_mut().enumerate().skip(i).take(num)    {
                         let ctx = bwt::dc::Context::new(sym as u8, 0, self.input.len());
-                        *d = model.decode(&ctx, &mut dh) as usize;
+                        *d = model.decode(&ctx, &mut dh).unwrap() as usize;
                         debug!("Init {} for {}", *d, sym);
                     }
                     cur_active = false;
@@ -144,11 +144,11 @@ impl<M: DistanceModel> super::Decoder for Decoder<M> {
         };
         // decode distances
         bwt::dc::decode(init, &mut self.input, &mut self.mtf, |ctx| {
-            let d = model.decode(&ctx, &mut dh);
+            let d = model.decode(&ctx, &mut dh).unwrap();
             debug!("Distance {} for {}", d, ctx.symbol);
             Ok(d as usize)
         }).unwrap();
-        let origin = model.decode(&CTX_0, &mut dh) as usize;
+        let origin = model.decode(&CTX_0, &mut dh).unwrap() as usize;
         info!("Origin: {}", origin);
         // undo BWT and write output
         for b in bwt::decode(&self.input, origin, &mut self.suffixes) {
@@ -168,6 +168,7 @@ pub mod test {
     use std::iter::repeat;
     #[cfg(feature="unstable")]
     use test::Bencher;
+    use block::{Encoder, Decoder};
     use model::{DistanceModel, exp, ybs};
 
     const TEXT: &'static [u8] = include_bytes!("../../LICENSE");
