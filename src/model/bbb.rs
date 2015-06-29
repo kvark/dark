@@ -97,10 +97,64 @@ const STATE_TABLE: [[u8; 4]; 0x100] = [
     [140,252, 0,41], [  0,  0, 0, 0], [  0,  0, 0, 0], [  0,  0, 0, 0], // 253-255 are reserved
 ];
 
+/// A StateMap maps a nonstationary counter state to a probability.
+/// After each mapping, the mapping is adjusted to improve future
+/// predictions.
+struct StateMap {
+    context: u8,
+    table: [ari::apm::FlatProbability; 0x100],
+}
+
+impl StateMap {
+    fn new() -> StateMap {
+        let mut t = [0; 0x100];
+        for i in 0 .. 0x100 {
+            let mut n0 = STATE_TABLE[i][2] as usize;
+            let mut n1 = STATE_TABLE[i][3] as usize;
+            if n0 ==0 {
+                n1 <<= 3;
+            }
+            if n1 == 0 {
+                n0 <<= 3;
+            }
+            let pr = ((n1 + 1) << ari::apm::FLAT_BITS) / (n0 + n1 + 2);
+            t[i] = pr as ari::apm::FlatProbability;
+        }
+        StateMap {
+            context: 0,
+            table: t,
+        }
+    }
+    /// Converts state cx (0-255) to a probability (0-4095), 
+    /// and trains by updating the previous prediction with y (0-1).
+    fn convert(&mut self, bit: u8, cx: u8) -> ari::apm::FlatProbability {
+        let top = (bit as usize) << ari::apm::FLAT_BITS;
+        let old = self.table[self.context as usize] as usize;
+        let pr = (0xF * old + top + 0x8) >> 4;
+        self.table[self.context as usize] = pr as ari::apm::FlatProbability;
+        self.context = cx;
+        self.table[cx as usize]
+    }
+}
+
 
 /// Coding model for BWT-DC output
 pub struct Model {
     next_prob: ari::apm::Bit,
+    /// Context -> state
+    ctx2state: [u8; 0x100],
+    /// Context pointer
+    ctx_id: u8,
+    /// State -> probability
+    state_map: StateMap,
+    /// Bitwise context: last 0-7 bits with a leading 1 (1 - 0xFF)
+    bit_context: u8,
+    /// Last 4 whole bytes, last is in low 8 bits
+    last_bytes: u32,
+    /// Count of consecutive identical bytes (0 - 0xFFFF)
+    run_count: u16,
+    /// (0-3) if run is 0, 1, 2-3, 4+
+    run_context: u32,
 }
 
 impl Model {
@@ -108,11 +162,42 @@ impl Model {
     pub fn new() -> Model {
         Model {
             next_prob: ari::apm::Bit::new_equal(),
+            ctx2state: [0; 0x100],
+            ctx_id: 0,
+            state_map: StateMap::new(),
+            bit_context: 1,
+            last_bytes: 0,
+            run_count: 0,
+            run_context: 0,
         }
     }
 
     fn update(&mut self, bit: u8, reset: bool) {
-        //TODO
+        //model
+        let state_old = self.ctx2state[self.ctx_id as usize];
+        self.ctx2state[self.ctx_id as usize] = STATE_TABLE[state_old as usize][bit as usize];
+        //context
+        self.bit_context = ((self.bit_context & 0x7F) << 1) + bit;
+        if reset {
+            self.last_bytes = ((self.last_bytes & 0xFFFFFFFF) << 8) | (self.bit_context as u32);
+            self.bit_context = 1;
+            if (self.last_bytes >> 8) & 0xFF == self.bit_context as u32 {
+                if self.run_count < 0xFFFF {
+                    self.run_count += 1;
+                }
+                match self.run_count {
+                    1 | 2 | 4 => self.run_context += 0x100,
+                    _ => ()
+                }
+            } else {
+                self.run_count = 0;
+                self.run_context = 0;
+            }
+        }
+        //predict
+        self.ctx_id = self.bit_context;
+        let pr = self.state_map.convert(bit, self.ctx2state[self.ctx_id as usize]);
+        self.next_prob = ari::apm::Bit::from_flat(pr);
     }
 
     fn predict(&self) -> ari::apm::Bit {
@@ -128,7 +213,7 @@ impl Model {
 
 impl super::Model<Symbol, SymContext> for Model {
     fn reset(&mut self) {
-        //TODO
+        *self = Model::new();
     }
 
     fn encode<W: io::Write>(&mut self, sym: Symbol, _ctx: &SymContext,
@@ -147,8 +232,8 @@ impl super::Model<Symbol, SymContext> for Model {
         for i in (0..8).rev() {
             let bit_b = try!(dh.decode( &self.predict() ));
             let bit = if bit_b {1} else {0};
-            self.update(bit, i == 0);
             sym |= bit << i;
+            self.update(bit, i == 0);
         }
         Ok(sym)
     }
