@@ -138,6 +138,65 @@ impl StateMap {
 }
 
 
+/// Gate maps a probability and a context into a new probability
+/// that bit y will next be 1.  After each guess it updates
+/// its state to improve future guesses.
+struct Gate {
+    last_p: usize,
+    last_ctx: usize,
+    /// Number of contexts
+    size: usize,
+    /// (p, context) -> p
+    table: Vec<[ari::apm::FlatProbability; 33]>,
+}
+
+impl Gate {
+    fn new(n: usize) -> Gate {
+        let mut base = [0; 33];
+        for i in 0..33 {
+            let rp = (i as f32)/16.0 - 1.0;
+            let tmp = rp * (ari::apm::WIDE_OFFSET as f32);
+            let wp = tmp as ari::apm::WideProbability;
+            base[i] = ari::apm::Bit::from_wide(wp).to_flat();
+        }
+        Gate {
+            last_p: 0,
+            last_ctx: 0,
+            size: n,
+            table: (0..n).map(|_| base).collect(),
+        }
+    }
+
+    fn pass(&mut self, bit: u8, pr: ari::apm::FlatProbability,
+            context: usize, rate: u8) -> ari::apm::FlatProbability
+    {
+        assert!(context < self.size && rate < 20);
+        let bus = bit as usize;
+        let top = bus << ari::apm::FLAT_BITS;
+        let g = top + (bus << rate) - bus - bus;
+        for i in 0..1 {
+            let pt = &mut self.table[self.last_ctx][self.last_p + i];
+            let tus = *pt as usize;
+            *pt = (((tus << rate) + g - tus) >> rate) as ari::apm::FlatProbability;
+        }
+        debug_assert_eq!(pr >> ari::apm::FLAT_BITS, 0);
+        let mut wide = ari::apm::Bit::from_flat(pr).to_wide();
+        if wide == ari::apm::WIDE_OFFSET {
+            wide -= 1; // prevent overflow
+        }
+        let wus = (wide + ari::apm::WIDE_OFFSET) as usize;
+        let w_bits = ari::apm::WIDE_BITS - 5;
+        let w = wus & ((1<<w_bits)-1); // interpolation weight (33 points)
+        self.last_p = wus >> w_bits;
+        self.last_ctx = context;
+        let t0 = self.table[self.last_ctx][self.last_p + 0] as usize;
+        let t1 = self.table[self.last_ctx][self.last_p + 1] as usize;
+        let r = ((t0 << w_bits) + t1 * w - t0 * w) >> w_bits;
+        r as ari::apm::FlatProbability
+    }
+}
+
+
 /// Coding model for BWT-DC output
 pub struct Model {
     next_prob: ari::apm::Bit,
@@ -155,6 +214,12 @@ pub struct Model {
     run_count: u16,
     /// (0-3) if run is 0, 1, 2-3, 4+
     run_context: u32,
+    gate11: Gate,
+    gate12: Gate,
+    gate2: Gate,
+    gate3: Gate,
+    gate4: Gate,
+    gate5: Gate,
 }
 
 impl Model {
@@ -169,6 +234,12 @@ impl Model {
             last_bytes: 0,
             run_count: 0,
             run_context: 0,
+            gate11: Gate::new(0x100),
+            gate12: Gate::new(0x100),
+            gate2: Gate::new(0x10000),
+            gate3: Gate::new(0x400),
+            gate4: Gate::new(0x2000),
+            gate5: Gate::new(0x4000),
         }
     }
 
@@ -196,8 +267,11 @@ impl Model {
         }
         //predict
         self.ctx_id = self.bit_context;
-        let pr = self.state_map.convert(bit, self.ctx2state[self.ctx_id as usize]);
-        self.next_prob = ari::apm::Bit::from_flat(pr);
+        let p0 = self.state_map.convert(bit, self.ctx2state[self.ctx_id as usize]);
+        let p11 = self.gate11.pass(bit, p0, self.bit_context as usize, 1);
+        let p12 = self.gate12.pass(bit, p0, self.bit_context as usize, 5);
+        let p1 = (((p11 as usize) + (p12 as usize) + 1) >> 1) as ari::apm::FlatProbability;
+        self.next_prob = ari::apm::Bit::from_flat(p1);
     }
 
     fn predict(&self) -> ari::apm::Bit {
