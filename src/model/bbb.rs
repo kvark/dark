@@ -125,15 +125,17 @@ impl StateMap {
             table: t,
         }
     }
-    /// Converts state cx (0-255) to a probability (0-4095), 
-    /// and trains by updating the previous prediction with y (0-1).
-    fn convert(&mut self, bit: u8, cx: u8) -> ari::apm::FlatProbability {
+    /// Trains by updating the previous prediction with y (0-1).
+    pub fn update(&mut self, bit: u8, cx: u8) {
         let top = (bit as usize) << ari::apm::FLAT_BITS;
         let old = self.table[self.context as usize] as usize;
         let pr = (0xF * old + top + 0x8) >> 4;
         self.table[self.context as usize] = pr as ari::apm::FlatProbability;
         self.context = cx;
-        self.table[cx as usize]
+    }
+
+    fn predict(&self) -> ari::apm::Bit {
+        ari::apm::Bit::from_flat(self.table[self.context as usize])
     }
 }
 
@@ -189,8 +191,8 @@ impl Gate {
         let w = wus & ((1<<w_bits)-1); // interpolation weight (33 points)
         self.last_p = wus >> w_bits;
         self.last_ctx = context;
-        let t0 = self.table[self.last_ctx][self.last_p + 0] as usize;
-        let t1 = self.table[self.last_ctx][self.last_p + 1] as usize;
+        let t0 = self.table[context][self.last_p + 0] as usize;
+        let t1 = self.table[context][self.last_p + 1] as usize;
         let r = ((t0 << w_bits) + t1 * w - t0 * w) >> w_bits;
         r as ari::apm::FlatProbability
     }
@@ -199,7 +201,6 @@ impl Gate {
 
 /// Coding model for BWT-DC output
 pub struct Model {
-    next_prob: ari::apm::Bit,
     /// Context -> state
     ctx2state: [u8; 0x100],
     /// Context pointer
@@ -214,19 +215,26 @@ pub struct Model {
     run_count: u16,
     /// (0-3) if run is 0, 1, 2-3, 4+
     run_context: u32,
-    gate11: Gate,
-    gate12: Gate,
+    gate1: [(ari::apm::Gate, ari::apm::Gate); 0x100],
     gate2: Gate,
     gate3: Gate,
     gate4: Gate,
     gate5: Gate,
 }
 
+struct UpdateCookie {
+    bc11: ari::apm::BinCoords,
+    bc12: ari::apm::BinCoords,
+    //bc2: ari::apm::BinCoords,
+    //bc3: ari::apm::BinCoords,
+    //bc4: ari::apm::BinCoords,
+    //bc5: ari::apm::BinCoords,
+}
+
 impl Model {
     /// Create a new model
     pub fn new() -> Model {
         Model {
-            next_prob: ari::apm::Bit::new_equal(),
             ctx2state: [0; 0x100],
             ctx_id: 0,
             state_map: StateMap::new(),
@@ -234,8 +242,7 @@ impl Model {
             last_bytes: 0,
             run_count: 0,
             run_context: 0,
-            gate11: Gate::new(0x100),
-            gate12: Gate::new(0x100),
+            gate1: [(ari::apm::Gate::new(), ari::apm::Gate::new()); 0x100],
             gate2: Gate::new(0x10000),
             gate3: Gate::new(0x400),
             gate4: Gate::new(0x2000),
@@ -243,7 +250,7 @@ impl Model {
         }
     }
 
-    fn update(&mut self, bit: u8, reset: bool) {
+    fn update(&mut self, bit: u8, reset: bool, cookie: UpdateCookie) {
         //model
         let state_old = self.ctx2state[self.ctx_id as usize];
         self.ctx2state[self.ctx_id as usize] = STATE_TABLE[state_old as usize][bit as usize];
@@ -265,23 +272,37 @@ impl Model {
                 self.run_context = 0;
             }
         }
-        //predict
         self.ctx_id = self.bit_context;
-        let p0 = self.state_map.convert(bit, self.ctx2state[self.ctx_id as usize]);
-        let p11 = self.gate11.pass(bit, p0, self.bit_context as usize, 1);
-        let p12 = self.gate12.pass(bit, p0, self.bit_context as usize, 5);
-        let p1 = (((p11 as usize) + (p12 as usize) + 1) >> 1) as ari::apm::FlatProbability;
-        self.next_prob = ari::apm::Bit::from_flat(p1);
+        //sub-update
+        self.state_map.update(bit, self.ctx2state[self.ctx_id as usize]);
+        let g1 = &mut self.gate1[self.bit_context as usize];
+        g1.0.update(bit!=0, cookie.bc11, 1, 0);
+        g1.1.update(bit!=0, cookie.bc12, 5, 0);
     }
 
-    fn predict(&self) -> ari::apm::Bit {
-        if self.next_prob.predict() {
-            self.next_prob.clone()
+    fn predict(&self) -> (ari::apm::Bit, UpdateCookie) {
+        let p0 = self.state_map.predict();
+        let (p1, bc11, bc12) = {
+            let g1 = &self.gate1[self.bit_context as usize];
+            let (p11, bc11) = g1.0.pass(&p0);
+            let (p12, bc12) = g1.1.pass(&p0);
+            let p1 = (p11.to_flat() + p12.to_flat() + 1) >> 1;
+            (ari::apm::Bit::from_flat(p1), bc11, bc12)
+        };
+
+        let pr = p1;
+        let cookie = UpdateCookie {
+            bc11: bc11,
+            bc12: bc12,
+        };
+
+        (if pr.predict() {
+            pr
         }else {
             // weird hack by MM, TODO: investigate
-            let flat = self.next_prob.to_flat() + 1;
+            let flat = pr.to_flat() + 1;
             ari::apm::Bit::from_flat(flat)
-        }
+        }, cookie)
     }
 }
 
@@ -294,8 +315,9 @@ impl super::Model<Symbol, SymContext> for Model {
               eh: &mut ari::Encoder<W>) -> io::Result<()> {
         for i in (0..8).rev() {
             let bit = (sym >> i) & 1;
-            try!(eh.encode(bit != 0, &self.predict()));
-            self.update(bit, i == 0);
+            let (prob, cookie) = self.predict();
+            try!(eh.encode(bit != 0, &prob));
+            self.update(bit, i == 0, cookie);
         }
         Ok(())
     }
@@ -304,10 +326,11 @@ impl super::Model<Symbol, SymContext> for Model {
               -> io::Result<Symbol> {
         let mut sym = 0 as Symbol;
         for i in (0..8).rev() {
-            let bit_b = try!(dh.decode( &self.predict() ));
+            let (prob, cookie) = self.predict();
+            let bit_b = try!(dh.decode(&prob));
             let bit = if bit_b {1} else {0};
             sym |= bit << i;
-            self.update(bit, i == 0);
+            self.update(bit, i == 0, cookie);
         }
         Ok(sym)
     }
