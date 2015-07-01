@@ -140,65 +140,6 @@ impl StateMap {
 }
 
 
-/// Gate maps a probability and a context into a new probability
-/// that bit y will next be 1.  After each guess it updates
-/// its state to improve future guesses.
-struct Gate {
-    last_p: usize,
-    last_ctx: usize,
-    /// Number of contexts
-    size: usize,
-    /// (p, context) -> p
-    table: Vec<[ari::apm::FlatProbability; 33]>,
-}
-
-impl Gate {
-    fn new(n: usize) -> Gate {
-        let mut base = [0; 33];
-        for i in 0..33 {
-            let rp = (i as f32)/16.0 - 1.0;
-            let tmp = rp * (ari::apm::WIDE_OFFSET as f32);
-            let wp = tmp as ari::apm::WideProbability;
-            base[i] = ari::apm::Bit::from_wide(wp).to_flat();
-        }
-        Gate {
-            last_p: 0,
-            last_ctx: 0,
-            size: n,
-            table: (0..n).map(|_| base).collect(),
-        }
-    }
-
-    fn pass(&mut self, bit: u8, pr: ari::apm::FlatProbability,
-            context: usize, rate: u8) -> ari::apm::FlatProbability
-    {
-        assert!(context < self.size && rate < 20);
-        let bus = bit as usize;
-        let top = bus << ari::apm::FLAT_BITS;
-        let g = top + (bus << rate) - bus - bus;
-        for i in 0..1 {
-            let pt = &mut self.table[self.last_ctx][self.last_p + i];
-            let tus = *pt as usize;
-            *pt = (((tus << rate) + g - tus) >> rate) as ari::apm::FlatProbability;
-        }
-        debug_assert_eq!(pr >> ari::apm::FLAT_BITS, 0);
-        let mut wide = ari::apm::Bit::from_flat(pr).to_wide();
-        if wide == ari::apm::WIDE_OFFSET {
-            wide -= 1; // prevent overflow
-        }
-        let wus = (wide + ari::apm::WIDE_OFFSET) as usize;
-        let w_bits = ari::apm::WIDE_BITS - 5;
-        let w = wus & ((1<<w_bits)-1); // interpolation weight (33 points)
-        self.last_p = wus >> w_bits;
-        self.last_ctx = context;
-        let t0 = self.table[context][self.last_p + 0] as usize;
-        let t1 = self.table[context][self.last_p + 1] as usize;
-        let r = ((t0 << w_bits) + t1 * w - t0 * w) >> w_bits;
-        r as ari::apm::FlatProbability
-    }
-}
-
-
 /// Coding model for BWT-DC output
 pub struct Model {
     /// Context -> state
@@ -215,20 +156,25 @@ pub struct Model {
     run_count: u16,
     /// (0-3) if run is 0, 1, 2-3, 4+
     run_context: u32,
-    gate1: [(ari::apm::Gate, ari::apm::Gate); 0x100],
-    gate2: Gate,
-    gate3: Gate,
-    gate4: Gate,
-    gate5: Gate,
+    gate1: Vec<(ari::apm::Gate, ari::apm::Gate)>,
+    gate2: Vec<ari::apm::Gate>,
+    gate3: Vec<ari::apm::Gate>,
+    gate4: Vec<ari::apm::Gate>,
+    gate5: Vec<ari::apm::Gate>,
 }
 
 struct UpdateCookie {
-    bc11: ari::apm::BinCoords,
-    bc12: ari::apm::BinCoords,
-    //bc2: ari::apm::BinCoords,
-    //bc3: ari::apm::BinCoords,
-    //bc4: ari::apm::BinCoords,
-    //bc5: ari::apm::BinCoords,
+    b11: ari::apm::BinCoords,
+    b12: ari::apm::BinCoords,
+    b2: ari::apm::BinCoords,
+    b3: ari::apm::BinCoords,
+    b4: ari::apm::BinCoords,
+    b5: ari::apm::BinCoords,
+    c1: usize,
+    c2: usize,
+    c3: usize,
+    c4: usize,
+    c5: usize,
 }
 
 impl Model {
@@ -242,11 +188,11 @@ impl Model {
             last_bytes: 0,
             run_count: 0,
             run_context: 0,
-            gate1: [(ari::apm::Gate::new(), ari::apm::Gate::new()); 0x100],
-            gate2: Gate::new(0x10000),
-            gate3: Gate::new(0x400),
-            gate4: Gate::new(0x2000),
-            gate5: Gate::new(0x4000),
+            gate1: (0..0x100).map(|_| (ari::apm::Gate::new(), ari::apm::Gate::new())).collect(),
+            gate2: (0..0x10000).map(|_| ari::apm::Gate::new()).collect(),
+            gate3: (0..400).map(|_| ari::apm::Gate::new()).collect(),
+            gate4: (0..0x2000).map(|_| ari::apm::Gate::new()).collect(),
+            gate5: (0..0x4000).map(|_| ari::apm::Gate::new()).collect(),
         }
     }
 
@@ -275,31 +221,63 @@ impl Model {
         self.ctx_id = self.bit_context;
         //sub-update
         self.state_map.update(bit, self.ctx2state[self.ctx_id as usize]);
-        let g1 = &mut self.gate1[self.bit_context as usize];
-        g1.0.update(bit!=0, cookie.bc11, 1, 0);
-        g1.1.update(bit!=0, cookie.bc12, 5, 0);
+        let g1 = &mut self.gate1[cookie.c1];
+        g1.0.update(bit!=0, cookie.b11, 1, 0);
+        g1.1.update(bit!=0, cookie.b12, 5, 0);
+        self.gate2[cookie.c2].update(bit!=0, cookie.b2, 3, 0);
+        self.gate3[cookie.c3].update(bit!=0, cookie.b3, 4, 0);
+        self.gate4[cookie.c4].update(bit!=0, cookie.b4, 3, 0);
+        self.gate5[cookie.c5].update(bit!=0, cookie.b5, 3, 0);
     }
 
     fn predict(&self) -> (ari::apm::Bit, UpdateCookie) {
         let p0 = self.state_map.predict();
-        let (p1, bc11, bc12) = {
-            let g1 = &self.gate1[self.bit_context as usize];
-            let (p11, bc11) = g1.0.pass(&p0);
-            let (p12, bc12) = g1.1.pass(&p0);
+        let c1 = self.bit_context as usize;
+        let (p1, b11, b12) = {
+            let g1 = &self.gate1[c1];
+            let (p11, b11) = g1.0.pass(&p0);
+            let (p12, b12) = g1.1.pass(&p0);
             let p1 = (p11.to_flat() + p12.to_flat() + 1) >> 1;
-            (ari::apm::Bit::from_flat(p1), bc11, bc12)
+            (ari::apm::Bit::from_flat(p1), b11, b12)
         };
+        let c2 = (self.bit_context as usize) |
+            (((self.last_bytes as usize) & 0xFF) << 8);
+        let (p2, b2) = self.gate2[c2].pass(&p1);
+        let c3 = ((self.last_bytes as usize) & 0xFF) |
+            (self.run_context as usize);
+        let (p3, b3) = self.gate3[c3].pass(&p2);
+        let c4 = (self.bit_context as usize) |
+            ((self.last_bytes as usize) & 0x1F);
+        let (p4x, b4) = self.gate4[c4].pass(&p3);
+        let p4y = (p4x.to_flat() * 3 + p3.to_flat() + 2) >> 2;
+        let p4 = ari::apm::Bit::from_flat(p4y);
+        let c5x = (self.last_bytes as usize) & 0xFFFFFF;
+        let c5y = ((self.bit_context as usize) ^ c5x) * 123456791;
+        let c5 = (c5y & 0xFFFFFFFF) >> 18;
+        let (p5x, b5) = self.gate5[c5].pass(&p4);
+        let p5y = (p5x.to_flat() + p4.to_flat() + 1) >> 1;
+        let p5 = ari::apm::Bit::from_flat(p5y);
 
-        let pr = p1;
+        let pr = p5;
         let cookie = UpdateCookie {
-            bc11: bc11,
-            bc12: bc12,
+            b11: b11,
+            b12: b12,
+            b2: b2,
+            b3: b3,
+            b4: b4,
+            b5: b5,
+            c1: c1,
+            c2: c2,
+            c3: c3,
+            c4: c4,
+            c5: c5,
         };
 
         (if pr.predict() {
             pr
         }else {
-            // weird hack by MM, TODO: investigate
+            // weird hack by MM, apparently coming from the fact
+            // that the probability never reaches the upper bound
             let flat = pr.to_flat() + 1;
             ari::apm::Bit::from_flat(flat)
         }, cookie)
