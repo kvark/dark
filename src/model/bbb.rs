@@ -235,18 +235,15 @@ impl Model {
         let bit_context = self.bit_context as usize;
         let last_bytes = self.last_bytes as usize;
         let c1 = bit_context;
-        let (p1, b11, b12) = {
-            let g1 = &self.gate1[c1];
-            let (p11, b11) = g1.0.pass(&p0);
-            let (p12, b12) = g1.1.pass(&p0);
-            let p1 = (p11.to_flat() + p12.to_flat() + 1) >> 1;
-            (ari::apm::Bit::from_flat(p1), b11, b12)
-        };
+        let (p11, b11) = self.gate1[c1].0.pass(&p0);
+        let (p12, b12) = self.gate1[c1].1.pass(&p0);
+        let p1x = (p11.to_flat() + p12.to_flat() + 1) >> 1;
+        let p1 = ari::apm::Bit::from_flat(p1x);
         let c2 = bit_context | ((last_bytes & 0xFF) << 8);
         let (p2, b2) = self.gate2[c2].pass(&p1);
         let c3 = (last_bytes & 0xFF) | (self.run_context as usize);
         let (p3, b3) = self.gate3[c3].pass(&p2);
-        let c4 = bit_context | (last_bytes & 0x1F);
+        let c4 = bit_context | (last_bytes & 0x1F00);
         let (p4x, b4) = self.gate4[c4].pass(&p3);
         let p4y = (p4x.to_flat() * 3 + p3.to_flat() + 2) >> 2;
         let p4 = ari::apm::Bit::from_flat(p4y);
