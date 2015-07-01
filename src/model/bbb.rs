@@ -232,7 +232,9 @@ impl Model {
 
     fn predict(&self) -> (ari::apm::Bit, UpdateCookie) {
         let p0 = self.state_map.predict();
-        let c1 = self.bit_context as usize;
+        let bit_context = self.bit_context as usize;
+        let last_bytes = self.last_bytes as usize;
+        let c1 = bit_context;
         let (p1, b11, b12) = {
             let g1 = &self.gate1[c1];
             let (p11, b11) = g1.0.pass(&p0);
@@ -240,20 +242,16 @@ impl Model {
             let p1 = (p11.to_flat() + p12.to_flat() + 1) >> 1;
             (ari::apm::Bit::from_flat(p1), b11, b12)
         };
-        let c2 = (self.bit_context as usize) |
-            (((self.last_bytes as usize) & 0xFF) << 8);
+        let c2 = bit_context | ((last_bytes & 0xFF) << 8);
         let (p2, b2) = self.gate2[c2].pass(&p1);
-        let c3 = ((self.last_bytes as usize) & 0xFF) |
-            (self.run_context as usize);
+        let c3 = (last_bytes & 0xFF) | (self.run_context as usize);
         let (p3, b3) = self.gate3[c3].pass(&p2);
-        let c4 = (self.bit_context as usize) |
-            ((self.last_bytes as usize) & 0x1F);
+        let c4 = bit_context | (last_bytes & 0x1F);
         let (p4x, b4) = self.gate4[c4].pass(&p3);
         let p4y = (p4x.to_flat() * 3 + p3.to_flat() + 2) >> 2;
         let p4 = ari::apm::Bit::from_flat(p4y);
-        let c5x = (self.last_bytes as usize) & 0xFFFFFF;
-        let c5y = ((self.bit_context as usize) ^ c5x) * 123456791;
-        let c5 = (c5y & 0xFFFFFFFF) >> 18;
+        let c5y = bit_context ^ (last_bytes & 0xFFFFFF);
+        let c5 = ((c5y * 123456791) & 0xFFFFFFFF) >> 18;
         let (p5x, b5) = self.gate5[c5].pass(&p4);
         let p5y = (p5x.to_flat() + p4.to_flat() + 1) >> 1;
         let p5 = ari::apm::Bit::from_flat(p5y);
