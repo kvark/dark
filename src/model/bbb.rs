@@ -101,7 +101,8 @@ const STATE_TABLE: [[u8; 4]; 0x100] = [
 /// After each mapping, the mapping is adjusted to improve future
 /// predictions.
 struct StateMap {
-    context: u8,
+    /// Context -> state
+    ctx2state: [u8; 0x100],
     table: [ari::apm::FlatProbability; 0x100],
 }
 
@@ -121,29 +122,29 @@ impl StateMap {
             t[i] = pr as ari::apm::FlatProbability;
         }
         StateMap {
-            context: 0,
+            ctx2state: [0; 0x100],
             table: t,
         }
     }
     /// Trains by updating the previous prediction with y (0-1).
-    pub fn update(&mut self, bit: u8, cx: u8) {
+    pub fn update(&mut self, bit: u8, cx: usize) {
+        let state = self.ctx2state[cx] as usize;
+        self.ctx2state[cx] = STATE_TABLE[state][bit as usize];
         let top = (bit as usize) << ari::apm::FLAT_BITS;
-        let old = self.table[self.context as usize] as usize;
+        let old = self.table[state] as usize;
         let pr = (0xF * old + top + 0x8) >> 4;
-        self.table[self.context as usize] = pr as ari::apm::FlatProbability;
-        self.context = cx;
+        self.table[state] = pr as ari::apm::FlatProbability;
     }
 
-    fn predict(&self) -> ari::apm::Bit {
-        ari::apm::Bit::from_flat(self.table[self.context as usize])
+    fn predict(&self, cx: usize) -> ari::apm::Bit {
+        let state = self.ctx2state[cx] as usize;
+        ari::apm::Bit::from_flat(self.table[state])
     }
 }
 
 
 /// Coding model for BWT-DC output
 pub struct Model {
-    /// Context -> state
-    ctx2state: [u8; 0x100],
     /// Context pointer
     ctx_id: u8,
     /// State -> probability
@@ -181,7 +182,6 @@ impl Model {
     /// Create a new model
     pub fn new() -> Model {
         Model {
-            ctx2state: [0; 0x100],
             ctx_id: 0,
             state_map: StateMap::new(),
             bit_context: 1,
@@ -197,9 +197,6 @@ impl Model {
     }
 
     fn update(&mut self, bit: u8, reset: bool, cookie: UpdateCookie) {
-        //model
-        let state_old = self.ctx2state[self.ctx_id as usize];
-        self.ctx2state[self.ctx_id as usize] = STATE_TABLE[state_old as usize][bit as usize];
         //context
         self.bit_context = ((self.bit_context & 0x7F) << 1) + bit;
         if reset {
@@ -218,9 +215,10 @@ impl Model {
                 self.run_context = 0;
             }
         }
+        //model
+        self.state_map.update(bit, self.ctx_id as usize);
         self.ctx_id = self.bit_context;
         //sub-update
-        self.state_map.update(bit, self.ctx2state[self.ctx_id as usize]);
         let g1 = &mut self.gate1[cookie.c1];
         g1.0.update(bit!=0, cookie.b11, 1, 0);
         g1.1.update(bit!=0, cookie.b12, 5, 0);
@@ -231,22 +229,27 @@ impl Model {
     }
 
     fn predict(&self) -> (ari::apm::Bit, UpdateCookie) {
-        let p0 = self.state_map.predict();
+        let p0 = self.state_map.predict(self.ctx_id as usize);
         let bit_context = self.bit_context as usize;
         let last_bytes = self.last_bytes as usize;
+
         let c1 = bit_context;
         let (p11, b11) = self.gate1[c1].0.pass(&p0);
         let (p12, b12) = self.gate1[c1].1.pass(&p0);
         let p1x = (p11.to_flat() + p12.to_flat() + 1) >> 1;
         let p1 = ari::apm::Bit::from_flat(p1x);
+
         let c2 = bit_context | ((last_bytes & 0xFF) << 8);
         let (p2, b2) = self.gate2[c2].pass(&p1);
+
         let c3 = (last_bytes & 0xFF) | (self.run_context as usize);
         let (p3, b3) = self.gate3[c3].pass(&p2);
+
         let c4 = bit_context | (last_bytes & 0x1F00);
         let (p4x, b4) = self.gate4[c4].pass(&p3);
         let p4y = (p4x.to_flat() * 3 + p3.to_flat() + 2) >> 2;
         let p4 = ari::apm::Bit::from_flat(p4y);
+
         let c5y = bit_context ^ (last_bytes & 0xFFFFFF);
         let c5 = ((c5y * 123456791) & 0xFFFFFFFF) >> 18;
         let (p5x, b5) = self.gate5[c5].pass(&p4);
