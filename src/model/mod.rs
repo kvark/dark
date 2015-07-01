@@ -4,11 +4,9 @@ Various BWT-DC compression models
 
 */
 
-use byteorder::{LittleEndian, WriteBytesExt};
 use compress::bwt::dc;
 use compress::entropy::ari;
 use std::io;
-use std::fs::File;
 
 /// A copy of `bbb` model
 pub mod bbb;
@@ -16,6 +14,8 @@ pub mod bbb;
 pub mod dark;
 /// Original BWT-DC compression model
 pub mod exp;
+/// Raw output for debugging
+pub mod raw;
 /// A simplest model to compare with
 pub mod simple;
 /// A attempt to reproduce YBS model
@@ -45,37 +45,6 @@ impl<M: Model<Distance, dc::Context>> DistanceModel for M {}
 /// A generic BWT raw output coding model
 pub trait RawModel: Model<Symbol, SymContext> {}
 impl<M: Model<Symbol, SymContext>> RawModel for M {}
-
-/// Raw (Sym,Dist) pairs output
-pub struct RawOut {
-    out: File,
-}
-
-impl RawOut {
-    /// Create a new raw output model
-    pub fn new() -> RawOut {
-        RawOut {
-            out: File::create("out.raw").unwrap(),
-        }
-    }
-}
-
-impl Model<Distance, dc::Context> for RawOut {
-    fn reset(&mut self) {}
-
-    fn encode<W: io::Write>(&mut self, d: Distance, c: &dc::Context, _enc: &mut ari::Encoder<W>) -> io::Result<()> {
-        debug!("Encoding raw distance {} for symbol {}", d, c.symbol);
-        try!(self.out.write_u32::<LittleEndian>(d));
-        try!(self.out.write_u8(c.symbol));
-        try!(self.out.write_u8(c.last_rank));
-        try!(self.out.write_u32::<LittleEndian>(c.distance_limit as u32));
-        Ok(())
-    }
-
-    fn decode<R: io::Read>(&mut self, _c: &dc::Context, _dec: &mut ari::Decoder<R>) -> io::Result<Distance> {
-        Ok(0) //not supported
-    }
-}
 
 
 #[cfg(test)]

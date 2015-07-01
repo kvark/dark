@@ -18,6 +18,13 @@ pack-%: all
 	cmp data/book1 book1.orig
 	rm book1.*
 
+bbb:
+	(cd etc/bbb && g++ main.cpp)
+	etc/bbb/a.out cf data/book1 book1.bbb
+	ls -l book1.bbb
+	rm book1.bbb
+	rm etc/bbb/a.out
+
 compare: all old
 	/usr/bin/time etc/dark-c/bin/dark p-r data/book1
 	rm book1.dark

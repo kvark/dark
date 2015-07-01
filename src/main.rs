@@ -32,7 +32,7 @@ const EXTENSION: &'static str = "dark";
 pub fn main() {
     env_logger::init().unwrap();
     let mut options = getopts::Options::new();
-    options.optopt("m", "model", "set compression model", "dark|exp|raw|simple|ybs");
+    options.optopt("m", "model", "set compression model", "dark|exp|raw|rawdc|simple|ybs");
     //options.optopt("o", "output", "set output file name", "NAME");
     options.optflag("h", "help", "print this help info");
 
@@ -72,7 +72,8 @@ pub fn main() {
             "bbb"   => block::raw::Decoder::new(n, model::bbb::Model  ::new()).decode(in_file, out_file),
             "dark"  => block::dc::Decoder::new(n, model::dark::Model  ::new()).decode(in_file, out_file),
             "exp"   => block::dc::Decoder::new(n, model::exp::Model   ::new()).decode(in_file, out_file),
-            "raw"   => block::dc::Decoder::new(n, model::RawOut       ::new()).decode(in_file, out_file),
+            "raw"   => block::raw::Decoder::new(n, model::raw::Out    ::new()).decode(in_file, out_file),
+            "rawdc" => block::dc::Decoder::new(n, model::raw::DcOut   ::new()).decode(in_file, out_file),
             "simple"=> block::dc::Decoder::new(n, model::simple::Model::new()).decode(in_file, out_file),
             "ybs"   => block::dc::Decoder::new(n, model::ybs::Model   ::new()).decode(in_file, out_file),
             _       => panic!("Unknown decoding model: {}", model)
@@ -102,7 +103,8 @@ pub fn main() {
             "bbb"   => block::raw::Encoder::new(n, model::bbb::Model  ::new()).encode(&input, out_file),
             "dark"  => block::dc::Encoder::new(n, model::dark::Model  ::new()).encode(&input, out_file),
             "exp"   => block::dc::Encoder::new(n, model::exp::Model   ::new()).encode(&input, out_file),
-            "raw"   => block::dc::Encoder::new(n, model::RawOut       ::new()).encode(&input, out_file),
+            "raw"   => block::raw::Encoder::new(n, model::raw::Out    ::new()).encode(&input, out_file),
+            "rawdc" => block::dc::Encoder::new(n, model::raw::DcOut   ::new()).encode(&input, out_file),
             "simple"=> block::dc::Encoder::new(n, model::simple::Model::new()).encode(&input, out_file),
             "ybs"   => block::dc::Encoder::new(n, model::ybs::Model   ::new()).encode(&input, out_file),
             _       => panic!("Unknown encoding model: {}", model)
