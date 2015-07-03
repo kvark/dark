@@ -17,4 +17,4 @@ The compressor can successfully pack and unpack any data in linear time, includi
 
 ### Base line
 
-The latest C-version of Dark-0.51 is replicated 1-to-1 here as the Dark compression model. However, due to improvements on the low level (entropy coder), the new implementation performs better (2144445 vs 215505 on _book1_). The source of Dark-0.51 is also provided in `etc/dark-c/`, it was adopted to be multi-platform and includes verbose logging.
+The latest C-version of Dark-0.51 is replicated 1-to-1 here as the Dark compression model. However, due to improvements on the low level (entropy coder), the new implementation performs better (214445 vs 215505 on _book1_). The source of Dark-0.51 is also provided in `etc/dark-c/`, it was adopted to be multi-platform and includes verbose logging.

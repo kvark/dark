@@ -492,7 +492,7 @@ void Predictor::update(int y) {
     if (((c4^c4>>8)&255)==0) {
       if (run<65535) 
         ++run;
-        if (run==1 || run==2 || run==4) runcxt+=256;
+      if (run==1 || run==2 || run==4) runcxt+=256;
     }
     else run=0, runcxt=0;
   }

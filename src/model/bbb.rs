@@ -103,7 +103,7 @@ const STATE_TABLE: [[u8; 4]; 0x100] = [
 struct StateMap {
     /// Context -> state
     ctx2state: [u8; 0x100],
-    table: [ari::apm::FlatProbability; 0x100],
+    table: [u16; 0x100],
 }
 
 impl StateMap {
@@ -112,14 +112,14 @@ impl StateMap {
         for i in 0 .. 0x100 {
             let mut n0 = STATE_TABLE[i][2] as usize;
             let mut n1 = STATE_TABLE[i][3] as usize;
-            if n0 ==0 {
-                n1 <<= 3;
+            if n0 == 0 {
+                n1 <<= 7;
             }
             if n1 == 0 {
-                n0 <<= 3;
+                n0 <<= 7;
             }
-            let pr = ((n1 + 1) << ari::apm::FLAT_BITS) / (n0 + n1 + 2);
-            t[i] = pr as ari::apm::FlatProbability;
+            let pr = ((n0 + 1) << 16) / (n0 + n1 + 2);
+            t[i] = pr as u16;
         }
         StateMap {
             ctx2state: [0; 0x100],
@@ -130,15 +130,17 @@ impl StateMap {
     pub fn update(&mut self, bit: u8, cx: usize) {
         let state = self.ctx2state[cx] as usize;
         self.ctx2state[cx] = STATE_TABLE[state][bit as usize];
-        let top = (bit as usize) << ari::apm::FLAT_BITS;
+        let top = (1 - bit as usize) << 16;
         let old = self.table[state] as usize;
-        let pr = (0xF * old + top + 0x8) >> 4;
-        self.table[state] = pr as ari::apm::FlatProbability;
+        let pr = (0xFF * old + top + 0x80) >> 8;
+        debug_assert!(pr < 0x10000);
+        self.table[state] = pr as u16;
     }
 
     fn predict(&self, cx: usize) -> ari::apm::Bit {
         let state = self.ctx2state[cx] as usize;
-        ari::apm::Bit::from_flat(self.table[state])
+        let pr = self.table[state] >> (16 - ari::apm::FLAT_BITS);
+        ari::apm::Bit::from_flat(pr)
     }
 }
 
@@ -146,7 +148,7 @@ impl StateMap {
 /// Coding model for BWT-DC output
 pub struct Model {
     /// Context pointer
-    ctx_id: u8,
+    ctx_id: usize,
     /// State -> probability
     state_map: StateMap,
     /// Bitwise context: last 0-7 bits with a leading 1 (1 - 0xFF)
@@ -156,7 +158,7 @@ pub struct Model {
     /// Count of consecutive identical bytes (0 - 0xFFFF)
     run_count: u16,
     /// (0-3) if run is 0, 1, 2-3, 4+
-    run_context: u32,
+    run_context: u16,
     gate1: Vec<(ari::apm::Gate, ari::apm::Gate)>,
     gate2: Vec<ari::apm::Gate>,
     gate3: Vec<ari::apm::Gate>,
@@ -190,7 +192,7 @@ impl Model {
             run_context: 0,
             gate1: (0..0x100).map(|_| (ari::apm::Gate::new(), ari::apm::Gate::new())).collect(),
             gate2: (0..0x10000).map(|_| ari::apm::Gate::new()).collect(),
-            gate3: (0..400).map(|_| ari::apm::Gate::new()).collect(),
+            gate3: (0..0x400).map(|_| ari::apm::Gate::new()).collect(),
             gate4: (0..0x2000).map(|_| ari::apm::Gate::new()).collect(),
             gate5: (0..0x4000).map(|_| ari::apm::Gate::new()).collect(),
         }
@@ -198,11 +200,12 @@ impl Model {
 
     fn update(&mut self, bit: u8, reset: bool, cookie: UpdateCookie) {
         //context
-        self.bit_context = ((self.bit_context & 0x7F) << 1) + bit;
+        self.bit_context = ((self.bit_context & 0x7F) << 1) | bit;
         if reset {
-            self.last_bytes = ((self.last_bytes & 0xFFFFFFFF) << 8) | (self.bit_context as u32);
+            self.last_bytes = ((self.last_bytes & 0xFFFFFF) << 8) |
+                (self.bit_context as u32);
             self.bit_context = 1;
-            if (self.last_bytes >> 8) & 0xFF == self.bit_context as u32 {
+            if (self.last_bytes ^ (self.last_bytes >> 8)) & 0xFF == 0 {
                 if self.run_count < 0xFFFF {
                     self.run_count += 1;
                 }
@@ -216,8 +219,8 @@ impl Model {
             }
         }
         //model
-        self.state_map.update(bit, self.ctx_id as usize);
-        self.ctx_id = self.bit_context;
+        self.state_map.update(bit, self.ctx_id);
+        self.ctx_id = self.bit_context as usize;
         //sub-update
         let g1 = &mut self.gate1[cookie.c1];
         g1.0.update(bit!=0, cookie.b11, 1, 0);
@@ -229,7 +232,7 @@ impl Model {
     }
 
     fn predict(&self) -> (ari::apm::Bit, UpdateCookie) {
-        let p0 = self.state_map.predict(self.ctx_id as usize);
+        let p0 = self.state_map.predict(self.ctx_id);
         let bit_context = self.bit_context as usize;
         let last_bytes = self.last_bytes as usize;
 
@@ -274,8 +277,7 @@ impl Model {
         (if pr.predict() {
             pr
         }else {
-            // weird hack by MM, apparently coming from the fact
-            // that the probability never reaches the upper bound
+            // The probability never reaches the upper bound
             let flat = pr.to_flat() + 1;
             ari::apm::Bit::from_flat(flat)
         }, cookie)
