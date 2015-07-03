@@ -20,6 +20,8 @@ use model::Model;
 
 /// Block encoding/decoding logic
 pub mod block;
+/// Entropy compression (last stage)
+pub mod entropy;
 /// Compression models
 pub mod model;
 /// Suffix Array Construction Algorithm (SACA)
